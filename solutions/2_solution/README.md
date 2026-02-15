@@ -1,9 +1,12 @@
 # 2_solution
 
-JWT/OAuth and Redis fast-path evolution:
-- OAuth token service + JWT auth for task/poll
-- Redis Streams queue + Lua atomic billing/check/enqueue
-- Postgres as control/audit plane
+Name: Fastpath Engine
 
-Primary design doc:
-- `../0_0_rfcs/RFC-0003-2-solution-jwt-redis-fastpath.md`
+Approach:
+- JWT + Redis Streams fast path for queue and credit checks
+- Postgres as control/audit plane with reconciliation snapshots
+- Full product capability baseline (tiers, request modes, model simulation)
+- Standard observability and OLAP event stack
+
+Primary RFC:
+- `../0_1_rfcs/RFC-0002-2-solution-jwt-redis-fastpath.md`

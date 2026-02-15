@@ -1,9 +1,12 @@
 # 0_solution
 
-Baseline production-ready implementation aligned to the original assignment stack:
-- Redis + Celery queue
-- Postgres for auth + credits + task metadata
-- API key bearer auth
+Name: Foundation Runner
 
-Primary design doc:
-- `../0_0_rfcs/RFC-0001-0-solution-postgres-baseline.md`
+Approach:
+- Redis + Celery + Postgres baseline
+- Stateful API-key auth
+- Full product capability baseline (tiers, request modes, model simulation)
+- Standard observability and OLAP event stack
+
+Primary RFC:
+- `../0_1_rfcs/RFC-0000-0-solution-postgres-baseline.md`

@@ -1,9 +1,12 @@
 # 1_solution
 
-Hardened version of `0_solution`:
-- Hash-key auth model with Redis auth cache
-- Transactional outbox and idempotency table
-- Same Redis + Celery queue, stronger schema hygiene
+Name: Secure Queue Runner
 
-Primary design doc:
-- `../0_0_rfcs/RFC-0002-1-solution-celery-redis-postgres.md`
+Approach:
+- JWT/OAuth auth over Redis + Celery + Postgres
+- Hashed key/client schema hardening
+- Full product capability baseline (tiers, request modes, model simulation)
+- Standard observability and OLAP event stack
+
+Primary RFC:
+- `../0_1_rfcs/RFC-0001-1-solution-celery-redis-postgres.md`

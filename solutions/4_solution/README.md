@@ -1,9 +1,12 @@
 # 4_solution
 
-Financial-grade and replay-ready evolution:
-- TigerBeetle pending/post/void transfers for credits
-- Redpanda/Kafka-style event backbone for replay
-- CQRS projections + watchdog reconciliation
+Name: Financial Core Runner
 
-Primary design doc:
-- `../0_0_rfcs/RFC-0005-4-solution-tigerbeetle-redpanda.md`
+Approach:
+- TigerBeetle pending/post/void credit lifecycle
+- Redpanda replayable event backbone + CQRS projections
+- Full product capability baseline (tiers, request modes, model simulation)
+- Standard observability and OLAP event stack
+
+Primary RFC:
+- `../0_1_rfcs/RFC-0004-4-solution-tigerbeetle-redpanda.md`
