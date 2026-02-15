@@ -208,3 +208,7 @@ __marimo__/
 
 **.DS_Store**
 __temp__/
+
+# metered-compute spec generated verification artifacts
+solutions/1_claude_code/0_solution/worklog/evidence/full-check-*/
+solutions/1_claude_code/0_solution/worklog/evidence/latest/
