@@ -44,6 +44,7 @@ Tracks (approach varies, product capabilities remain available):
 - `4_solution`: Financial Core Runner - TigerBeetle + Redpanda + CQRS projections
 
 RFC index:
+- `0_0_problem_statement_and_assumptions/README.md`
 - `0_1_rfcs/0_RFC-template.md`
 - `0_1_rfcs/RFC-0000-0-solution-postgres-baseline.md`
 - `0_1_rfcs/RFC-0001-1-solution-celery-redis-postgres.md`
