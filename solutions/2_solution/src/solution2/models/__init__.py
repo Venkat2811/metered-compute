@@ -1,0 +1,51 @@
+"""Canonical model exports for domain dataclasses and API schemas."""
+
+from solution2.models.domain import (
+    AdmissionDecision,
+    AuthUser,
+    CreditReservation,
+    OutboxEvent,
+    TaskCommand,
+    TaskQueryView,
+    TaskRecord,
+    WebhookSubscription,
+    WebhookTerminalEvent,
+)
+from solution2.models.schemas import (
+    AdminCreditsRequest,
+    AdminCreditsResponse,
+    BatchSubmitRequest,
+    BatchSubmitResponse,
+    BatchSubmitTask,
+    CancelTaskResponse,
+    ErrorEnvelope,
+    ErrorPayload,
+    PollTaskResponse,
+    ReadyResponse,
+    SubmitTaskRequest,
+    SubmitTaskResponse,
+)
+
+__all__ = [
+    "AdminCreditsRequest",
+    "AdminCreditsResponse",
+    "AdmissionDecision",
+    "AuthUser",
+    "BatchSubmitRequest",
+    "BatchSubmitResponse",
+    "BatchSubmitTask",
+    "CancelTaskResponse",
+    "CreditReservation",
+    "ErrorEnvelope",
+    "ErrorPayload",
+    "OutboxEvent",
+    "PollTaskResponse",
+    "ReadyResponse",
+    "SubmitTaskRequest",
+    "SubmitTaskResponse",
+    "TaskCommand",
+    "TaskQueryView",
+    "TaskRecord",
+    "WebhookSubscription",
+    "WebhookTerminalEvent",
+]

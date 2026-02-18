@@ -1,0 +1,144 @@
+# Solution Tracks
+
+All tracks are designed as HA, production-ready approaches under a Docker Compose deployment constraint.
+
+Priority order used across all RFCs:
+
+1. Correctness
+2. Reliability and HA
+3. Scalability and maintainability
+4. Performance and complexity
+
+## Tracks
+
+- `0_solution`: Pragmatic Baseline - Celery + Redis + Postgres (assignment stack, done right)
+- `1_solution`: Redis-Native Engine - JWT + Redis Streams + Lua atomic pipeline
+- `2_solution`: Service-Grade Platform - CQRS + RabbitMQ SLA routing + reservation billing
+- `3_solution`: Financial Core - TigerBeetle + Redpanda + RabbitMQ hot/cold dispatch + CQRS projections (RFC only)
+- `4_solution`: Production Launch - Sol 1 hot path + Sol 2 outbox (RFC only)
+- `5_solution`: TB + Restate Showcase - TigerBeetle double-entry billing + Restate durable execution
+
+Solutions 0-2 are independently excellent architectural approaches with different tradeoff profiles, each implemented with full test suites and demo scripts.
+Solutions 3 and 4 are RFC-only designs that extend the architectural exploration without implementation.
+Solution 4 is a launch decision: the best of Sol 1 (speed) + Sol 2 (correctness), minimizing infrastructure for a 2-week production ship.
+Solution 5 is a minimal showcase (~700 LOC) proving TigerBeetle + Restate replace thousands of lines of infrastructure code.
+
+Solutions 0, 1, and 5 use API key auth. Solutions 2+ (except 5) use JWT/OAuth.
+
+## Shared documents
+
+- `0_0_problem_statement_and_assumptions/README.md` - requirements and baseline
+- `0_1_rfcs/` - one RFC per solution
+
+## Observability by solution
+
+Implemented in every coded solution: `structlog` JSON logging, `prometheus_client` metrics, Grafana dashboard.
+Additional implementation in `1_solution`: optional OTel+Tempo tracing profile.
+Described in RFC for later tracks: alertmanager rules, OpenSearch, ClickHouse.
+
+| Solution | Implemented                                                     | Described in RFC                                     |
+| -------- | --------------------------------------------------------------- | ---------------------------------------------------- |
+| 0        | structlog + Prometheus + Grafana                               | Alertmanager rules                                   |
+| 1        | structlog + Prometheus + Grafana + optional OTel+Tempo profile | Alertmanager                                         |
+| 2        | structlog + Prometheus + Grafana                               | Alertmanager, OTel+Tempo, OpenSearch                |
+| 3 (RFC)  | -                                                               | Alertmanager, OTel+Tempo, OpenSearch, ClickHouse    |
+| 4 (RFC)  | -                                                               | Sol 1 observability + outbox metrics                 |
+| 5        | structlog + Prometheus + Grafana                               | -                                                    |
+
+## What each solution ships as code vs. describes in RFC
+
+| Capability                       | 0      | 1      | 2      | 3 (RFC only)     | 4 (RFC only) | 5      |
+| -------------------------------- | ------ | ------ | ------ | ---------------- | ------------ | ------ |
+| Task submit/poll/cancel          | code   | code   | code   | RFC              | RFC          | code   |
+| Credit check + deduction         | code   | code   | code   | RFC              | RFC          | code   |
+| Auth (API key / JWT)             | code   | code   | code   | RFC              | RFC          | code   |
+| Admin credits                    | code   | code   | code   | RFC              | RFC          | code   |
+| Concurrency + idempotency        | code   | code   | code   | RFC              | RFC          | code   |
+| Demo script                      | code   | code   | code   | -                | -            | code   |
+| Unit + integration tests         | code   | code   | code   | -                | -            | code   |
+| Scenario harness (12-13 scenarios) | code | code   | code   | -                | -            | code   |
+| Sustained load test (100 RPS)      | code | code   | code   | -                | -            | code   |
+| Fault tests (degradation proof)  | code   | code   | code   | -                | -            | -      |
+| structlog + Prometheus + Grafana | code   | code   | code   | RFC              | RFC          | code   |
+| Alertmanager rules               | config | config | config | RFC              | RFC          | -      |
+| OTel + Tempo                     | -      | optional profile | RFC    | RFC              | RFC          | -      |
+| OpenSearch                       | -      | -      | RFC    | RFC              | -            | -      |
+| ClickHouse OLAP                  | -      | -      | -      | RFC              | -            | -      |
+
+## How to run
+
+Each solution: `cd <N>_solution && docker compose up --build`
+
+Run tests: `cd <N>_solution && pytest tests/`
+
+Full verification: `cd <N>_solution && make prove`
+
+Sustained load test: `cd <N>_solution && make loadtest` (100 RPS x 30s, requires running stack)
+
+Default demo: `0_solution` (assignment-faithful, minimal containers)
+Flagship demo: `1_solution` (zero-Postgres hot path, answers "reduce DB calls" directly)
+CQRS demo: `2_solution` (reservation billing, outbox pattern, RabbitMQ SLA routing)
+Launch blueprint: `4_solution` (RFC only — Sol 1 speed + Sol 2 correctness)
+TB + Restate showcase: `5_solution` (TigerBeetle billing + Restate durable execution, ~700 LOC)
+
+## Containers per solution
+
+CQRS separation (solutions 2-3) is in the code (separate routers, separate schemas), not separate containers.
+
+| Solution | Total | Core services                                                                          | Infrastructure                                   | Observability       |
+| -------- | ----- | -------------------------------------------------------------------------------------- | ------------------------------------------------ | ------------------- |
+| 0        | ~7    | api, worker, reaper                                                                    | redis, postgres                                  | prometheus, grafana |
+| 1        | ~9    | api, hydra, worker, reaper, webhook-dispatcher                                         | redis, postgres                                  | prometheus, grafana |
+| 2        | ~12   | api, hydra, worker, outbox-relay, projector, watchdog, webhook-worker                  | redis, postgres, rabbitmq                        | prometheus, grafana |
+| 3 (RFC)  | ~15   | api, hydra, dispatcher, worker(s), outbox-relay, projector, reconciler, webhook-worker | redis, postgres, tigerbeetle, redpanda, rabbitmq | prometheus, grafana |
+| 4 (RFC)  | ~10   | api, hydra, worker, outbox-relay, reaper, webhook-dispatcher                           | redis, postgres                                  | prometheus, grafana |
+| 5        | ~8    | api                                                                                    | redis, postgres, tigerbeetle, tb-init, restate   | prometheus, grafana |
+
+Solutions 3 and 4 are RFC only (not implemented). Sol 3 with ClickHouse profile would be ~17 containers.
+Solution 4 is a launch blueprint that picks Sol 1 hot path + Sol 2 outbox.
+Solution 5 has 8 containers total — same as Sol 0, but with TigerBeetle for billing and Restate for durable execution.
+
+## Full comparison
+
+| Concern               | 0 - Baseline                          | 1 - Redis-Native                                                                 | 2 - Service-Grade              | 3 - Financial Core (RFC)                      | 4 - Production Launch (RFC)                     | 5 - TB + Restate                              |
+| --------------------- | ------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------ | --------------------------------------------- | ----------------------------------------------- | ---------------------------------------------- |
+| **Auth**              | API key + Redis cache                 | JWT + OAuth                                                                      | JWT + OAuth                    | JWT + OAuth                                   | JWT + OAuth (from Sol 1)                        | API key + Redis cache                          |
+| **Queue**             | Celery + Redis                        | Redis Streams                                                                    | RabbitMQ (SLA routing)         | Redpanda + RabbitMQ dispatch                  | Redis Streams (from Sol 1)                      | Restate (durable execution)                    |
+| **Credit model**      | Deduct-then-execute                   | Deduct-then-execute                                                              | Reserve/capture/release        | TB pending/post/void                          | Deduct-then-execute (Sol 1) + outbox refunds    | TB pending/post/void                           |
+| **Credit atomicity**  | Redis Lua                             | Redis Lua (mega-script)                                                          | PG transaction                 | TigerBeetle (Jepsen-verified)                 | Redis Lua + PG outbox                           | TigerBeetle (Jepsen-verified)                  |
+| **Dual-write risk**   | Yes (mitigated: retry + reaper)       | Reduced (Lua atomic; retry on compensation)                                      | Solved (outbox)                | Solved (outbox)                               | Solved (outbox for post-admission)              | Solved (Restate journal)                       |
+| **Cancel**            | Revoke + refund                       | Redis status + refund                                                            | Release reservation            | Void pending transfer                         | PG + outbox refund                              | Void pending transfer                          |
+| **Concurrency limit** | Redis INCR/DECR                       | Lua-enforced                                                                     | Reservation count              | Redis INCR/DECR                               | Lua-enforced (from Sol 1)                       | TB account flag                                |
+| **Task IDs**          | UUIDv7 (app-generated)                | UUIDv7 (app-generated)                                                           | UUIDv7 (app-generated)         | UUIDv7 (app-generated, maps to TB u128)       | UUIDv7 (from Sol 1)                             | UUIDv7 (maps to TB u128)                       |
+| **Idempotency**       | Redis key                             | Lua-checked                                                                      | PG unique constraint           | TB transfer ID = task ID                      | Lua-checked (from Sol 1)                        | PG unique constraint + Restate                 |
+| **Webhook**           | No                                    | Optional (async POST)                                                            | RabbitMQ webhook exchange      | Redpanda webhook consumer                     | Optional (from Sol 1)                           | No                                             |
+| **Batch**             | No                                    | Lua in loop                                                                      | Single reservation, fan-out    | TB transfer batch                             | Lua in loop (from Sol 1)                        | No                                             |
+| **Queue position**    | Approximate (LLEN)                    | Approximate (XLEN; XINFO GROUPS lag/pending metrics)                            | RabbitMQ management API        | Redpanda consumer lag                         | Approximate (XLEN; XINFO GROUPS from Sol 1)     | N/A (Restate)                                  |
+| **Replay/rebuild**    | No                                    | No                                                                               | No (consumed = gone)           | Yes (offset reset)                            | No (from Sol 1)                                 | Yes (Restate journal replay)                   |
+| **Worker routing**    | Round-robin (Celery)                  | Round-robin (stream)                                                             | SLA queue routing              | Hot/cold model-affinity                       | Round-robin (from Sol 1)                        | Restate (single handler)                       |
+| **Failure recovery**  | Reaper refund job                     | PEL + XAUTOCLAIM + refund                                                        | Watchdog releases reservations | TB auto-timeout + reconciler                  | PEL (Sol 1) + outbox relay (Sol 2) + drift audit | TB auto-timeout + Restate replay               |
+| **Tiers**             | No (flat)                             | free/pro/enterprise                                                              | free/pro/enterprise            | free/pro/enterprise                           | free/pro/enterprise (from Sol 1)                | No (flat)                                      |
+| **Model classes**     | No (x+y only)                         | small/medium/large                                                               | small/medium/large             | small/medium/large                            | small/medium/large (from Sol 1)                 | No (x+y only)                                  |
+| **Logging**           | structlog JSON                        | structlog JSON                                                                   | structlog JSON                 | structlog JSON                                | structlog JSON (from Sol 1)                     | structlog JSON                                 |
+| **Metrics**           | Prometheus client                     | Prometheus client                                                                | Prometheus client              | Prometheus client                             | Prometheus (Sol 1) + outbox metrics (Sol 2)     | Prometheus client                              |
+| **Tracing**           | —                                     | Optional profile: OTel+Tempo                                                     | RFC: OTel+Tempo                | RFC: OTel+Tempo                               | RFC: OTel+Tempo (from Sol 1)                    | —                                              |
+| **Log search**        | —                                     | —                                                                                | RFC: OpenSearch                | RFC: OpenSearch                               | — (from Sol 1)                                  | —                                              |
+| **OLAP**              | —                                     | —                                                                                | —                              | Optional: ClickHouse                          | — (from Sol 1)                                  | —                                              |
+| **Alerting**          | Config: Alertmanager                  | Config: Alertmanager                                                             | Config: Alertmanager           | Config: Alertmanager                          | Config: Alertmanager (from Sol 1)               | —                                              |
+| **Dashboards**        | Grafana                               | Grafana                                                                          | Grafana                        | Grafana                                       | Grafana (from Sol 1)                            | Grafana                                        |
+| **Containers**        | ~7                                    | ~9                                                                               | ~12                            | ~15                                           | ~10 (Sol 1 base + outbox-relay from Sol 2)      | ~8                                             |
+| **PG on hot path**    | Auth miss only                        | Submit + worker writes (poll/auth zero-PG; revocation PG fallback if Redis down) | Command writes (txn)           | Command metadata only                         | Admission zero-PG (Sol 1); post-admission PG+outbox | Metadata only (billing in TB)                  |
+| **Key strength**      | Simple, complete, assignment-faithful | Zero-PG hot path                                                                 | Correct under all failures     | Financial-grade + replayable + model-affinity | Sol 1 speed + Sol 2 correctness, minimal infra  | ~700 LOC, Jepsen-verified billing, auto-replay |
+
+## Cross-cutting decisions
+
+### UUIDv7 for task IDs
+
+All solutions generate task IDs using UUIDv7 (RFC 9562) — time-ordered UUIDs where the first 48 bits encode a millisecond timestamp. Generated application-side via Python `uuid6.uuid7()`, not Postgres `gen_random_uuid()`.
+
+Why: UUIDv4 causes random B-tree page splits on every insert. UUIDv7 appends sequentially, eliminating write amplification on primary key indexes. `ORDER BY task_id` becomes equivalent to `ORDER BY created_at` without a separate index. Internal IDs (user_id, txn_id, event_id) retain `gen_random_uuid()` where time-ordering adds no value.
+
+## Reproducibility
+
+Local/dev runs use hardcoded defaults (API keys, credentials, OAuth keypair).
+Production must externalize secrets and support key rotation.

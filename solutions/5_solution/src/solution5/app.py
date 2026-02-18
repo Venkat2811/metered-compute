@@ -1,0 +1,327 @@
+"""FastAPI application — routes, auth, lifespan.
+
+TigerBeetle handles all billing. Restate handles durable execution.
+This file wires them together with a thin API layer.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import socket
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+from typing import Any
+
+import asyncpg
+import httpx
+import redis.asyncio as aioredis
+import restate
+import structlog
+import tigerbeetle as tb
+import uuid6
+from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
+from prometheus_client import generate_latest
+from pydantic import BaseModel
+
+from solution5 import cache, metrics, repository
+from solution5.billing import Billing
+from solution5.logging import setup_logging
+from solution5.settings import Settings
+from solution5.workflows import _state as workflow_state
+from solution5.workflows import task_service
+
+log = structlog.get_logger()
+
+
+# ── Request / Response models ──────────────────────────────────────
+
+
+class SubmitRequest(BaseModel):
+    x: int
+    y: int
+    idempotency_key: str | None = None
+
+
+class SubmitResponse(BaseModel):
+    task_id: str
+    status: str
+
+
+class CancelResponse(BaseModel):
+    task_id: str
+    status: str
+    credits_refunded: int
+
+
+class AdminCreditsRequest(BaseModel):
+    user_id: str
+    amount: int
+
+
+class AdminCreditsResponse(BaseModel):
+    user_id: str
+    new_balance: int
+
+
+# ── Application factory ───────────────────────────────────────────
+
+
+def create_app() -> FastAPI:
+    setup_logging()
+    settings = Settings()
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
+        # ── Postgres ──
+        pg_pool = await asyncpg.create_pool(settings.postgres_dsn, min_size=2, max_size=10)
+        await repository.run_migrations(pg_pool)
+
+        # ── Redis ──
+        redis_conn = aioredis.from_url(settings.redis_url, decode_responses=False)
+
+        # ── TigerBeetle ──
+        # TB client requires numeric IP addresses, not hostnames
+        tb_addr = settings.tigerbeetle_addresses
+        if ":" in tb_addr:
+            host, port = tb_addr.rsplit(":", 1)
+            if not host[0].isdigit():
+                host = socket.gethostbyname(host)
+            tb_addr = f"{host}:{port}"
+        tb_client = tb.client.ClientSync(
+            cluster_id=settings.tigerbeetle_cluster_id,
+            replica_addresses=tb_addr,
+        )
+        billing = Billing(
+            client=tb_client,
+            revenue_id=settings.tb_revenue_account_id,
+            escrow_id=settings.tb_escrow_account_id,
+            timeout_secs=settings.tb_transfer_timeout_secs,
+        )
+        billing.ensure_platform_accounts()
+
+        # Seed TB user accounts from PG
+        async with pg_pool.acquire() as conn:
+            rows = await conn.fetch("SELECT user_id, credits FROM users")
+            for row in rows:
+                uid = str(row["user_id"])
+                billing.ensure_user_account(uid)
+                if billing.get_balance(uid) == 0 and row["credits"] > 0:
+                    tid = uuid6.uuid7().hex
+                    billing.topup_credits(uid, int(tid, 16), row["credits"])
+
+        # ── Share state with Restate workflow handlers ──
+        shared: dict[str, Any] = {
+            "pg_pool": pg_pool,
+            "redis": redis_conn,
+            "billing": billing,
+            "settings": settings,
+        }
+        workflow_state.update(shared)
+        app.state.pg_pool = pg_pool
+        app.state.redis = redis_conn
+        app.state.billing = billing
+        app.state.settings = settings
+
+        # ── Register with Restate runtime (delayed — server must be listening first) ──
+        async def _register_restate() -> None:
+            await asyncio.sleep(2)  # wait for uvicorn to bind
+            for attempt in range(5):
+                try:
+                    async with httpx.AsyncClient() as client:
+                        resp = await client.post(
+                            f"{settings.restate_admin_url}/deployments",
+                            json={"uri": "http://api:8000/restate", "use_http_11": True},
+                            headers={"content-type": "application/json"},
+                            timeout=10,
+                        )
+                        log.info("restate_registered", status=resp.status_code)
+                        if resp.status_code in (200, 201):
+                            return
+                except Exception as e:
+                    log.warning("restate_registration_attempt", attempt=attempt, error=str(e))
+                await asyncio.sleep(2)
+
+        asyncio.create_task(_register_restate())
+
+        yield
+
+        await pg_pool.close()
+        await redis_conn.aclose()
+
+    app = FastAPI(title="Solution 4 — TB + Restate", lifespan=lifespan)
+
+    # Mount Restate service endpoint as ASGI sub-app
+    restate_app = restate.app(services=[task_service])
+    app.mount("/restate", restate_app)
+
+    # ── Auth helper ────────────────────────────────────────────────
+
+    async def authenticate(request: Request) -> dict[str, str]:
+        auth = request.headers.get("authorization", "")
+        if not auth.startswith("Bearer "):
+            raise HTTPException(401, "Missing API key")
+        api_key = auth[7:]
+
+        cached = await cache.get_cached_auth(request.app.state.redis, api_key)
+        if cached:
+            return cached
+
+        user = await repository.get_user_by_api_key(request.app.state.pg_pool, api_key)
+        if not user:
+            raise HTTPException(401, "Invalid API key")
+
+        user_dict = {"user_id": str(user["user_id"]), "name": user["name"]}
+        await cache.cache_auth(request.app.state.redis, api_key, user_dict)
+        return user_dict
+
+    # ── Routes ─────────────────────────────────────────────────────
+
+    @app.post("/v1/task", response_model=SubmitResponse, status_code=201)
+    async def submit_task(body: SubmitRequest, request: Request) -> SubmitResponse | JSONResponse:
+        user = await authenticate(request)
+        user_id = user["user_id"]
+        billing: Billing = request.app.state.billing
+        stg: Settings = request.app.state.settings
+
+        task_id = str(uuid6.uuid7())
+        transfer_hex = uuid6.uuid7().hex
+        transfer_int = int(transfer_hex, 16)
+        cost = stg.default_task_cost
+
+        billing.ensure_user_account(user_id)
+
+        if not billing.reserve_credits(user_id, transfer_int, cost):
+            raise HTTPException(402, "Insufficient credits")
+        metrics.TASK_SUBMITTED.labels(status="accepted").inc()
+
+        try:
+            task = await repository.create_task(
+                request.app.state.pg_pool,
+                task_id=task_id,
+                user_id=user_id,
+                x=body.x,
+                y=body.y,
+                cost=cost,
+                tb_transfer_id=transfer_hex,
+                idempotency_key=body.idempotency_key,
+            )
+        except Exception as exc:
+            billing.release_credits(transfer_int)
+            raise HTTPException(500, "Task creation failed") from exc
+
+        # Idempotency replay: create_task returned existing row
+        existing_id = str(task["task_id"])
+        if existing_id != task_id:
+            billing.release_credits(transfer_int)
+            return JSONResponse(
+                content=SubmitResponse(task_id=existing_id, status=task["status"]).model_dump(),
+                status_code=200,
+            )
+
+        await cache.cache_task(request.app.state.redis, task_id, task)
+
+        # Fire-and-forget: invoke Restate durable workflow
+        try:
+            async with httpx.AsyncClient() as client:
+                await client.post(
+                    f"{stg.restate_ingress_url}/TaskService/execute_task/send",
+                    json={
+                        "task_id": task_id,
+                        "tb_transfer_id": transfer_hex,
+                        "x": body.x,
+                        "y": body.y,
+                    },
+                    headers={"idempotency-key": task_id},
+                    timeout=5,
+                )
+        except Exception as e:
+            log.warning("restate_invoke_failed", task_id=task_id, error=str(e))
+
+        return SubmitResponse(task_id=task_id, status="PENDING")
+
+    @app.get("/v1/poll")
+    async def poll_task(task_id: str, request: Request) -> dict[str, str]:
+        cached = await cache.get_cached_task(request.app.state.redis, task_id)
+        if cached:
+            return cached
+
+        task = await repository.get_task(request.app.state.pg_pool, task_id)
+        if not task:
+            raise HTTPException(404, "Task not found")
+
+        task_dict = {k: str(v) for k, v in task.items() if v is not None}
+        await cache.cache_task(request.app.state.redis, task_id, task_dict)
+        return task_dict
+
+    @app.post("/v1/task/{task_id}/cancel", response_model=CancelResponse)
+    async def cancel_task(task_id: str, request: Request) -> CancelResponse:
+        user = await authenticate(request)
+        billing: Billing = request.app.state.billing
+
+        task = await repository.get_task(request.app.state.pg_pool, task_id)
+        if not task:
+            raise HTTPException(404, "Task not found")
+        if str(task["user_id"]) != user["user_id"]:
+            raise HTTPException(403, "Not your task")
+        if task["status"] != "PENDING":
+            raise HTTPException(409, f"Cannot cancel task in {task['status']} state")
+
+        transfer_int = int(task["tb_transfer_id"], 16)
+        if not billing.release_credits(transfer_int):
+            raise HTTPException(500, "Credit release failed")
+        metrics.TASK_CANCELLED.inc()
+
+        await repository.update_task_status(request.app.state.pg_pool, task_id, "CANCELLED")
+        await cache.invalidate_task(request.app.state.redis, task_id)
+
+        return CancelResponse(task_id=task_id, status="CANCELLED", credits_refunded=task["cost"])
+
+    @app.post("/v1/admin/credits", response_model=AdminCreditsResponse)
+    async def admin_credits(body: AdminCreditsRequest, request: Request) -> AdminCreditsResponse:
+        await authenticate(request)
+        billing: Billing = request.app.state.billing
+
+        billing.ensure_user_account(body.user_id)
+        transfer_int = int(uuid6.uuid7().hex, 16)
+        if not billing.topup_credits(body.user_id, transfer_int, body.amount):
+            raise HTTPException(500, "Topup failed")
+
+        new_balance = billing.get_balance(body.user_id)
+        await repository.update_user_credits(request.app.state.pg_pool, body.user_id, new_balance)
+        return AdminCreditsResponse(user_id=body.user_id, new_balance=new_balance)
+
+    @app.get("/health")
+    async def health() -> dict[str, str]:
+        return {"status": "ok"}
+
+    @app.get("/ready")
+    async def ready(request: Request) -> JSONResponse:
+        checks: dict[str, str] = {}
+        try:
+            await request.app.state.pg_pool.fetchval("SELECT 1")
+            checks["postgres"] = "ok"
+        except Exception:
+            checks["postgres"] = "error"
+        try:
+            await request.app.state.redis.ping()
+            checks["redis"] = "ok"
+        except Exception:
+            checks["redis"] = "error"
+
+        all_ok = all(v == "ok" for v in checks.values())
+        return JSONResponse(checks, status_code=200 if all_ok else 503)
+
+    @app.get("/metrics")
+    async def prometheus_metrics() -> Response:
+        return Response(generate_latest(), media_type="text/plain; charset=utf-8")
+
+    return app
+
+
+async def _run_migrations() -> None:
+    """Standalone migration runner for Makefile."""
+    settings = Settings()
+    pool = await asyncpg.create_pool(settings.postgres_dsn, min_size=1, max_size=2)
+    await repository.run_migrations(pool)
+    await pool.close()

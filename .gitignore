@@ -213,10 +213,10 @@ __temp__/
 # Keep only templates/policy files in worklog artifacts:
 # - baselines: TEMPLATE.md, gates.*.yaml
 # - evidence: README.md, .gitkeep
-solutions/1_claude_code/*_solution/worklog/baselines/*
-!solutions/1_claude_code/*_solution/worklog/baselines/TEMPLATE.md
-!solutions/1_claude_code/*_solution/worklog/baselines/gates.*.yaml
+solutions/*_solution/worklog/baselines/*
+!solutions/*_solution/worklog/baselines/TEMPLATE.md
+!solutions/*_solution/worklog/baselines/gates.*.yaml
 
-solutions/1_claude_code/*_solution/worklog/evidence/full-check-*/
-solutions/1_claude_code/*_solution/worklog/evidence/latest/*
-solutions/1_claude_code/*_solution/worklog/evidence/load/*
+solutions/*_solution/worklog/evidence/full-check-*/
+solutions/*_solution/worklog/evidence/latest/*
+solutions/*_solution/worklog/evidence/load/*

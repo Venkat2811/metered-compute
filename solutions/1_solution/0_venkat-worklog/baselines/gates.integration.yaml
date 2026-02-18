@@ -1,0 +1,8 @@
+require_submit_poll_flow: true
+require_oauth_token_issuance: true
+require_credit_deduction: true
+require_cancel_refund: true
+require_admin_topup: true
+require_idempotency_handling: true
+require_stream_consumer_processing: true
+max_5xx_rate: 0.01

@@ -1,0 +1,12 @@
+unit_gate: worklog/baselines/gates.unit.yaml
+integration_gate: worklog/baselines/gates.integration.yaml
+require_fault_tests:
+  - worker_crash_refund
+  - redis_down_graceful_503
+  - postgres_down_controlled_degradation
+require_observability:
+  - api_metrics_exposed
+  - worker_metrics_exposed
+  - prometheus_scrape_ok
+  - grafana_dashboard_provisioned
+out: worklog/baselines/latest-release-gate.json

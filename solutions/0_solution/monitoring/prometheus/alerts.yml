@@ -1,0 +1,39 @@
+groups:
+  - name: solution0-core-alerts
+    rules:
+      - alert: Solution0ApiUnavailable
+        expr: up{job="api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Solution0 API target is down"
+          description: "Prometheus cannot scrape API metrics for over 1 minute."
+
+      - alert: Solution0WorkerUnavailable
+        expr: up{job="worker"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Solution0 worker target is down"
+          description: "Prometheus cannot scrape worker metrics for over 2 minutes."
+
+      - alert: Solution0Api5xxSpike
+        expr: |
+          sum(rate(http_requests_total{path="/v1/task",status=~"5.."}[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Elevated API 5xx rate on submit endpoint"
+          description: "Submit endpoint 5xx rate exceeded 0.05 req/s over 5 minutes."
+
+      - alert: Solution0QueueDepthHigh
+        expr: celery_queue_depth > 50
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Celery queue depth is high"
+          description: "Queue depth has been above 50 for 10 minutes."

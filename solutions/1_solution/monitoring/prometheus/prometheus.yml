@@ -1,0 +1,26 @@
+global:
+  scrape_interval: 5s
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  - job_name: api
+    static_configs:
+      - targets: ["api:8000"]
+    metrics_path: /metrics
+
+  - job_name: worker
+    static_configs:
+      - targets: ["worker:9100"]
+    metrics_path: /metrics
+
+  - job_name: reaper
+    static_configs:
+      - targets: ["reaper:9201"]
+    metrics_path: /metrics
+
+  - job_name: webhook-dispatcher
+    static_configs:
+      - targets: ["webhook-dispatcher:9300"]
+    metrics_path: /metrics

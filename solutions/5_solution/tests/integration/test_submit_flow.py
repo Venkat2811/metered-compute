@@ -1,0 +1,68 @@
+"""Integration tests — require docker compose up.
+
+Run with: INTEGRATION=1 pytest tests/integration -v
+"""
+
+from __future__ import annotations
+
+import os
+import time
+
+import httpx
+import pytest
+
+BASE = os.environ.get("API_BASE_URL", "http://localhost:8000")
+API_KEY = "sk-alice-secret-key-001"
+HEADERS = {"Authorization": f"Bearer {API_KEY}"}
+
+
+@pytest.fixture
+def client() -> httpx.Client:
+    return httpx.Client(base_url=BASE, headers=HEADERS, timeout=10)
+
+
+@pytest.mark.skipif(
+    not os.environ.get("INTEGRATION"),
+    reason="Set INTEGRATION=1 to run integration tests",
+)
+class TestSubmitFlow:
+    def test_health(self, client: httpx.Client) -> None:
+        r = client.get("/health")
+        assert r.status_code == 200
+        assert r.json()["status"] == "ok"
+
+    def test_submit_and_poll(self, client: httpx.Client) -> None:
+        # Submit
+        r = client.post("/v1/task", json={"x": 3, "y": 4})
+        assert r.status_code == 201
+        data = r.json()
+        assert data["status"] == "PENDING"
+        task_id = data["task_id"]
+
+        # Poll (may need retries while Restate processes)
+        for _ in range(20):
+            r = client.get("/v1/poll", params={"task_id": task_id})
+            assert r.status_code == 200
+            if r.json().get("status") == "COMPLETED":
+                break
+            time.sleep(0.5)
+        else:
+            pytest.fail("Task did not complete within timeout")
+
+    def test_submit_and_cancel(self, client: httpx.Client) -> None:
+        r = client.post("/v1/task", json={"x": 1, "y": 1})
+        assert r.status_code == 201
+        task_id = r.json()["task_id"]
+
+        # Cancel immediately (before Restate picks it up)
+        r = client.post(f"/v1/task/{task_id}/cancel")
+        # May be 200 (cancelled) or 409 (already running)
+        assert r.status_code in (200, 409)
+
+    def test_admin_credits(self, client: httpx.Client) -> None:
+        r = client.post(
+            "/v1/admin/credits",
+            json={"user_id": "a0000000-0000-0000-0000-000000000001", "amount": 100},
+        )
+        assert r.status_code == 200
+        assert r.json()["new_balance"] > 0

@@ -1,0 +1,102 @@
+groups:
+  - name: solution2-core-alerts
+    rules:
+      - alert: Solution2ApiUnavailable
+        expr: up{job="api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Solution2 API target is down"
+          description: "Prometheus cannot scrape API metrics for over 1 minute."
+
+      - alert: Solution2WorkerUnavailable
+        expr: up{job="worker"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Solution2 worker target is down"
+          description: "Prometheus cannot scrape worker metrics for over 2 minutes."
+
+      - alert: Solution2WebhookWorkerUnavailable
+        expr: up{job="webhook-worker"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Webhook dispatcher target is down"
+          description: "Prometheus cannot scrape webhook dispatcher metrics for over 2 minutes."
+
+      - alert: Solution2Api5xxSpike
+        expr: |
+          sum(rate(http_requests_total{path="/v1/task",status=~"5.."}[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Elevated Solution2 API 5xx rate on submit endpoint"
+          description: "Submit endpoint 5xx rate exceeded 0.05 req/s over 5 minutes."
+
+      - alert: Solution2QueueDepthHigh
+        expr: stream_queue_depth > 50
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Queue depth is high"
+          description: "Queue depth has been above 50 for 10 minutes."
+
+      - alert: StreamConsumerLagWarning
+        expr: max(stream_consumer_lag) > 50
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Stream consumer lag is elevated"
+          description: "Redis stream consumer lag has exceeded 50 for at least 2 minutes."
+
+      - alert: StreamConsumerLagCritical
+        expr: max(stream_consumer_lag) > 200
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Stream consumer lag is critical"
+          description: "Redis stream consumer lag has exceeded 200 for at least 2 minutes."
+
+      - alert: DriftThreshold
+        expr: max(credit_drift_absolute) > 100
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Credit drift exceeds threshold"
+          description: "Observed absolute credit drift over 100 for at least 2 minutes."
+
+      - alert: SnapshotStale
+        expr: (time() - snapshot_last_success_unixtime) > 600
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Snapshot flush appears stale"
+          description: "No successful snapshot flush has been recorded for over 10 minutes."
+
+      - alert: PELGrowing
+        expr: max(stream_pending_entries) > 20
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Stream pending entries list is growing"
+          description: "Pending stream entries exceed 20 for at least 5 minutes."
+
+      - alert: WebhookDeadLetterGrowing
+        expr: webhook_dlq_depth > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Webhook dead-letter queue has pending items"
+          description: "Webhook DLQ depth has remained above zero for 5 minutes."

@@ -1,0 +1,5 @@
+min_pytest_pass_rate: 1.0
+min_type_coverage_ratio: 0.95
+require_mypy_strict: true
+require_ruff_clean: true
+require_red_green_refactor_evidence: true
