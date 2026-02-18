@@ -77,4 +77,4 @@ Time Spent: ~40 hours
 - 4_solution ~1 hour
 - 5_solution ~4 hours (in parallel with 2_solution)
 
-All runnable solutions were verified on Macbook Pro and Dockercompose
+All runnable solutions were verified on Macbook Pro

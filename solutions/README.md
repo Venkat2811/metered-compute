@@ -23,7 +23,7 @@ Solutions 3 and 4 are RFC-only designs that extend the architectural exploration
 Solution 4 is a launch decision: the best of Sol 1 (speed) + Sol 2 (correctness), minimizing infrastructure for a 2-week production ship.
 Solution 5 is a minimal showcase (~700 LOC) proving TigerBeetle + Restate replace thousands of lines of infrastructure code.
 
-Solutions 0, 1, and 5 use API key auth. Solutions 2+ (except 5) use JWT/OAuth.
+Solutions 0 and 5 use API key auth. Solutions 1-4 use JWT/OAuth.
 
 ## Shared documents
 
