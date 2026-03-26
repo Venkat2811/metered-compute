@@ -59,3 +59,13 @@ class TaskQueryView:
     projection_version: int
     created_at: datetime
     updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class OutboxEventRecord:
+    event_id: UUID
+    aggregate_id: UUID
+    event_type: str
+    topic: str
+    payload: str
+    created_at: datetime

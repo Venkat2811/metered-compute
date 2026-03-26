@@ -15,7 +15,7 @@ from solution3.constants import (
     TaskStatus,
     UserRole,
 )
-from solution3.models.domain import AuthUser, TaskCommand, TaskQueryView
+from solution3.models.domain import AuthUser, OutboxEventRecord, TaskCommand, TaskQueryView
 
 
 def _map_task_command(row: asyncpg.Record) -> TaskCommand:
@@ -54,6 +54,17 @@ def _map_task_query_view(row: asyncpg.Record) -> TaskQueryView:
         projection_version=row["projection_version"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
+    )
+
+
+def _map_outbox_event(row: asyncpg.Record) -> OutboxEventRecord:
+    return OutboxEventRecord(
+        event_id=row["event_id"],
+        aggregate_id=row["aggregate_id"],
+        event_type=row["event_type"],
+        topic=row["topic"],
+        payload=row["payload"],
+        created_at=row["created_at"],
     )
 
 
@@ -212,3 +223,32 @@ async def cancel_task_command(pool: asyncpg.Pool, *, task_id: UUID) -> bool:
             ),
         )
         return True
+
+
+async def fetch_unpublished_outbox_events(
+    pool: asyncpg.Pool, *, limit: int = 100
+) -> list[OutboxEventRecord]:
+    rows = await pool.fetch(
+        """
+        SELECT event_id, aggregate_id, event_type, payload::text AS payload, topic, created_at
+        FROM cmd.outbox_events
+        WHERE published_at IS NULL
+        ORDER BY created_at
+        LIMIT $1
+        """,
+        limit,
+    )
+    return [_map_outbox_event(row) for row in rows]
+
+
+async def mark_outbox_events_published(pool: asyncpg.Pool, *, event_ids: list[UUID]) -> None:
+    if not event_ids:
+        return
+    await pool.execute(
+        """
+        UPDATE cmd.outbox_events
+        SET published_at = now()
+        WHERE event_id = ANY($1::uuid[])
+        """,
+        event_ids,
+    )
