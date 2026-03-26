@@ -4,7 +4,7 @@ Objective:
 
 Implement idempotent command handoff from PG command store into Redpanda and RabbitMQ worker dispatch with hot/cold routing.
 
-Status: in progress as of 2026-03-26. Billing wrapper, relay seam, dispatcher publish contract, and worker completion seam are green; real Redpanda/RabbitMQ loops and end-to-end flow remain.
+Status: in progress as of 2026-03-26. Billing wrapper, relay seam, dispatcher publish contract, worker completion seam, and worker model-runtime seam are green; real Redpanda/RabbitMQ loops and end-to-end flow remain.
 
 Acceptance criteria:
 
@@ -54,3 +54,4 @@ Sub-slices complete so far:
 - [x] Outbox relay publish/flush/mark ordering seam with unit coverage.
 - [x] Dispatcher topology + durable publish contract with unit coverage.
 - [x] Worker running/completion guard seam with TigerBeetle post/void and Redis cache updates.
+- [x] Worker model runtime seam with cold-start, warm-registry, and hot-path unit coverage.

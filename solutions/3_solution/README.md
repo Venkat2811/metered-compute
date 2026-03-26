@@ -1,6 +1,6 @@
 # 3_solution: Financial Core
 
-Bootstrap implementation for the TigerBeetle + Redpanda + CQRS solution track.
+In-progress implementation for the TigerBeetle + Redpanda + CQRS solution track.
 
 Compose project name: `mc-solution3` (set in `compose.yaml`).
 
@@ -43,7 +43,7 @@ make full-check
 Current proof scope is intentionally narrower than the final RFC scope:
 
 - quality gates for `src/solution3` and `tests_bootstrap`
-- coverage for the currently implemented API/bootstrap code
+- coverage for the currently implemented API, billing, and worker-runtime seams
 - compose startup + `/health` and `/ready` smoke checks
 - running-stack OAuth + submit/poll/cancel/admin-RBAC integration checks
 - bootstrap demo smoke
@@ -51,7 +51,7 @@ Current proof scope is intentionally narrower than the final RFC scope:
 
 ## Current Status
 
-This directory has completed `P0-003`.
+This directory has completed `P0-003` and has active `P0-004` slices landed.
 
 What is already real:
 
@@ -62,13 +62,17 @@ What is already real:
 - command-store repository helpers for `task_commands`, `outbox_events`, and guarded cancel updates
 - Hydra-backed JWT verification and scope-aware route protection
 - Redis hot-path task cache for poll reads
-- bootstrap worker entrypoints for `dispatcher`, `projector`, `reconciler`, `worker`, `watchdog`, and `webhook-worker`
+- TigerBeetle billing primitives for account bootstrap and pending/post/void transfer lifecycle
+- worker runtime seams for cold-start model loading, warm-model registration, guarded running transition, and terminal completion updates
+- outbox relay and dispatcher contract seams with unit-tested publish/flush behavior
+- worker-shaped entrypoints for `dispatcher`, `projector`, `reconciler`, `worker`, `watchdog`, and `webhook-worker`
 - isolated test suite in `tests_bootstrap/` covering unit, integration, e2e, and fault slices for the implemented scope
 
 What is not implemented yet:
 
-- TigerBeetle billing integration
-- Redpanda outbox, dispatcher, projector, and rebuild flows
+- real TigerBeetle, Redpanda, and RabbitMQ client loops across the full submit -> relay -> dispatch -> worker path
+- end-to-end billing capture/release over the real worker dispatch path
+- projector and rebuild flows from the event backbone
 - full CQRS query projection pipeline
 - successful admin top-up path
 - scenario harness and load profile
