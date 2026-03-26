@@ -214,15 +214,31 @@ def scenario_cancel_pending(client: httpx.Client) -> dict[str, Any]:
         f"/v1/task/{task_id}/cancel",
         headers={"Authorization": f"Bearer {ALICE_KEY}"},
     )
-    # May be 200 (cancelled) or 409 (Restate already picked it up)
+    # May be 200 (cancelled/requested) or 409 (already terminal)
     if cancel.status_code == 200:
         payload = cancel.json()
-        _assert(payload.get("status") == "CANCELLED", f"unexpected cancel payload: {payload}")
-        _assert(payload.get("credits_refunded") == 10, f"unexpected refund: {payload}")
-        return {"task_id": task_id, "status": "CANCELLED", "credits_refunded": 10}
+        status = payload.get("status")
+        _assert(status in {"CANCELLED", "CANCEL_REQUESTED"}, f"unexpected cancel payload: {payload}")
+        if status == "CANCELLED":
+            _assert(payload.get("credits_refunded") == 10, f"unexpected refund: {payload}")
+            return {"task_id": task_id, "status": "CANCELLED", "credits_refunded": 10}
+        if status == "CANCEL_REQUESTED":
+            _assert(payload.get("credits_refunded") == 0, f"unexpected refund: {payload}")
+            terminal = _poll_until_terminal(
+                client,
+                task_id=task_id,
+                api_key=ALICE_KEY,
+                max_attempts=80,
+                poll_interval_seconds=0.5,
+            )
+            _assert(
+                terminal.get("status") == "CANCELLED",
+                f"task not cancelled after request: {terminal}",
+            )
+            return {"task_id": task_id, "status": "CANCEL_REQUESTED", "terminal": terminal}
     elif cancel.status_code == 409:
-        # Restate already moved task to RUNNING — acceptable race condition
-        return {"task_id": task_id, "status": "ALREADY_RUNNING", "note": "Restate picked up task before cancel"}
+        # Already terminal or invalid transition.
+        return {"task_id": task_id, "status": "ALREADY_TERMINAL", "note": cancel.text}
     else:
         raise AssertionError(f"cancel unexpected status: {cancel.status_code} {cancel.text}")
 

@@ -395,31 +395,61 @@ def create_app() -> FastAPI:
             raise HTTPException(404, "Task not found")
         if str(task["user_id"]) != user["user_id"]:
             raise HTTPException(403, "Not your task")
-        if task["status"] != "PENDING":
-            raise HTTPException(409, f"Cannot cancel task in {task['status']} state")
+        status = str(task["status"])
+        if status == "CANCELLED":
+            return CancelResponse(task_id=task_id, status="CANCELLED", credits_refunded=0)
+        if status == "CANCEL_REQUESTED":
+            return CancelResponse(
+                task_id=task_id,
+                status="CANCEL_REQUESTED",
+                credits_refunded=0,
+            )
+        if status in {"COMPLETED", "FAILED"}:
+            raise HTTPException(409, f"Cannot cancel task in {status} state")
 
-        cancelled = await repository.update_task_status_if_match(
-            request.app.state.pg_pool,
-            task_id,
-            status="CANCELLED",
-            expected_status="PENDING",
-        )
-        if not cancelled:
-            raise HTTPException(409, "Task state changed while cancel was processed")
-
-        transfer_int = int(task["tb_transfer_id"], 16)
-        if not billing.release_credits(transfer_int):
-            await repository.update_task_status_if_match(
+        if status == "PENDING":
+            cancelled = await repository.update_task_status_if_match(
                 request.app.state.pg_pool,
                 task_id,
-                status="PENDING",
-                expected_status="CANCELLED",
+                status="CANCELLED",
+                expected_status="PENDING",
             )
-            raise HTTPException(500, "Credit release failed")
-        metrics.TASK_CANCELLED.inc()
-        await cache.invalidate_task(request.app.state.redis, task_id)
+            if not cancelled:
+                # raced with workflow transition; re-check current state and behave deterministically
+                task = await repository.get_task(request.app.state.pg_pool, task_id)
+                if task is None:
+                    raise HTTPException(404, "Task not found")
+                status = str(task["status"])
+            else:
+                transfer_int = int(task["tb_transfer_id"], 16)
+                if not billing.release_credits(transfer_int):
+                    await repository.update_task_status_if_match(
+                        request.app.state.pg_pool,
+                        task_id,
+                        status="PENDING",
+                        expected_status="CANCELLED",
+                    )
+                    raise HTTPException(500, "Credit release failed")
+                metrics.TASK_CANCELLED.inc()
+                await cache.invalidate_task(request.app.state.redis, task_id)
+                return CancelResponse(
+                    task_id=task_id,
+                    status="CANCELLED",
+                    credits_refunded=task["cost"],
+                )
 
-        return CancelResponse(task_id=task_id, status="CANCELLED", credits_refunded=task["cost"])
+        if status == "RUNNING":
+            cancel_requested = await repository.update_task_status_if_match(
+                request.app.state.pg_pool,
+                task_id,
+                status="CANCEL_REQUESTED",
+                expected_status="RUNNING",
+            )
+            if not cancel_requested:
+                raise HTTPException(409, "Task state changed while cancel was processed")
+            return CancelResponse(task_id=task_id, status="CANCEL_REQUESTED", credits_refunded=0)
+
+        raise HTTPException(409, f"Cannot cancel task in {status} state")
 
     @app.post("/v1/admin/credits", response_model=AdminCreditsResponse)
     async def admin_credits(body: AdminCreditsRequest, request: Request) -> AdminCreditsResponse:

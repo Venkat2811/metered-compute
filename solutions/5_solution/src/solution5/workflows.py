@@ -86,6 +86,54 @@ async def execute_task(ctx: restate.Context, request: dict[str, Any]) -> dict[st
     async def _run_replay_compatible(name: str, action: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         return await ctx.run(name, _build_replayable_action(action, *args, **kwargs))
 
+    async def _maybe_complete_cancellation() -> bool:
+        """Convert a queued RUNNING cancel request into a terminal CANCELLED state.
+
+        Returns True only when cancellation becomes terminal.
+        """
+
+        current_status = await _run_replay_compatible(
+            "read_status_after_cancel_check",
+            repository.get_task_status,
+            pool,
+            task_id,
+        )
+        if current_status != "CANCEL_REQUESTED":
+            return False
+
+        released = await _run_replay_compatible(
+            "release_credits_for_cancel",
+            billing.release_credits,
+            tb_transfer_id,
+        )
+        if not released:
+            log.warning("workflow_cancel_release_failed", task_id=task_id)
+            return False
+
+        marked_cancelled = await _run_replay_compatible(
+            "mark_cancelled_after_request",
+            repository.update_task_status_if_match,
+            pool,
+            task_id,
+            status="CANCELLED",
+            expected_status="CANCEL_REQUESTED",
+        )
+        if not marked_cancelled:
+            return False
+
+        await _run_replay_compatible(
+            "invalidate_task_after_cancel",
+            cache.invalidate_task,
+            redis_conn,
+            task_id,
+        )
+        await _run_replay_compatible(
+            "task_cancelled_metric_after_request",
+            metrics.TASK_CANCELLED.inc,
+        )
+        log.info("workflow_cancelled_after_request", task_id=task_id)
+        return True
+
     # ── Control: mark running (guarded — safe to replay) ──
     started = await _run_replay_compatible(
         "mark_running",
@@ -102,7 +150,7 @@ async def execute_task(ctx: restate.Context, request: dict[str, Any]) -> dict[st
             pool,
             task_id,
         )
-        if current_status in {"RUNNING", "COMPLETED", "FAILED", "CANCELLED"}:
+        if current_status in {"RUNNING", "COMPLETED", "FAILED", "CANCELLED", "CANCEL_REQUESTED"}:
             # Replay or duplicate event. If already terminal, return terminal result.
             return {"status": current_status}
         # Could be missing row (corrupt request) or unexpected transition.
@@ -127,6 +175,9 @@ async def execute_task(ctx: restate.Context, request: dict[str, Any]) -> dict[st
             metrics.COMPUTE_REQUESTS.labels(result="ok").inc,
         )
     except Exception as error:
+        if await _maybe_complete_cancellation():
+            return {"status": "CANCELLED", "reason": "cancelled_during_compute"}
+
         await _run_replay_compatible(
             "compute_metric_error",
             metrics.COMPUTE_REQUESTS.labels(result="error").inc,
@@ -163,10 +214,14 @@ async def execute_task(ctx: restate.Context, request: dict[str, Any]) -> dict[st
             pool,
             task_id,
         )
-        if current_status in {"COMPLETED", "CANCELLED", "FAILED"}:
+        if current_status in {"COMPLETED", "CANCELLED", "FAILED", "CANCEL_REQUESTED"}:
             return {"status": current_status}
         log.warning("workflow_compute_failed", task_id=task_id, error=str(error))
         return {"status": "REJECTED"}
+
+    cancelled_after_compute = await _maybe_complete_cancellation()
+    if cancelled_after_compute:
+        return {"status": "CANCELLED", "reason": "cancelled_after_compute"}
 
     # ── Control: capture credits in TigerBeetle (journaled — money operation) ──
     captured: bool = await _run_replay_compatible(
@@ -176,6 +231,10 @@ async def execute_task(ctx: restate.Context, request: dict[str, Any]) -> dict[st
     )
 
     if not captured:
+        cancelled_after_capture = await _maybe_complete_cancellation()
+        if cancelled_after_capture:
+            return {"status": "CANCELLED", "reason": "cancelled_after_compute"}
+
         await _run_replay_compatible(
             "mark_failed_after_capture",
             repository.update_task_status_if_match,
@@ -223,7 +282,7 @@ async def execute_task(ctx: restate.Context, request: dict[str, Any]) -> dict[st
             pool,
             task_id,
         )
-        if current_status in {"COMPLETED", "FAILED", "CANCELLED"}:
+        if current_status in {"COMPLETED", "FAILED", "CANCELLED", "CANCEL_REQUESTED"}:
             return {"status": current_status}
         return {"status": "REJECTED"}
 

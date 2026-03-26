@@ -56,8 +56,25 @@ class TestSubmitFlow:
 
         # Cancel immediately (before Restate picks it up)
         r = client.post(f"/v1/task/{task_id}/cancel")
-        # May be 200 (cancelled) or 409 (already running)
+        # May be immediate cancelled, deferred cancel, or already terminal.
         assert r.status_code in (200, 409)
+        if r.status_code == 200:
+            status = r.json().get("status")
+            assert status in {"CANCELLED", "CANCEL_REQUESTED"}
+            assert int(r.json()["credits_refunded"]) in (0, 10)
+            if status == "CANCEL_REQUESTED":
+                # eventual terminal should still become canceled
+                for _ in range(20):
+                    poll = client.get("/v1/poll", params={"task_id": task_id})
+                    assert poll.status_code == 200
+                    final_status = poll.json().get("status")
+                    if final_status == "CANCELLED":
+                        break
+                    if final_status in {"FAILED", "COMPLETED"}:
+                        raise AssertionError(f"task reached unexpected terminal state: {final_status}")
+                    time.sleep(0.5)
+                else:
+                    raise AssertionError("cancel request did not complete")
 
     def test_admin_credits(self, client: httpx.Client) -> None:
         r = client.post(

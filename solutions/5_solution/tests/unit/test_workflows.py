@@ -126,6 +126,7 @@ class TestExecuteTaskLifecycle:
             "update_task_status_if_match",
             AsyncMock(side_effect=[True, True]),
         )
+        monkeypatch.setattr(repository, "get_task_status", AsyncMock(return_value="RUNNING"))
         cache_invalidate_task = AsyncMock()
         monkeypatch.setattr(cache_module, "invalidate_task", cache_invalidate_task)
         monkeypatch.setattr(
@@ -141,6 +142,65 @@ class TestExecuteTaskLifecycle:
         assert response["status"] == "FAILED"
         cache_invalidate_task.assert_awaited_once_with(redis, "t4")
         assert cast(AsyncMock, repository.update_task_status_if_match).await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_compute_failure_with_cancel_request(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        _, billing, _ = self._set_state()
+        billing.capture_credits = MagicMock(return_value=False)
+        monkeypatch.setattr(
+            repository,
+            "update_task_status_if_match",
+            AsyncMock(return_value=True),
+        )
+        monkeypatch.setattr(
+            repository,
+            "get_task_status",
+            AsyncMock(return_value="CANCEL_REQUESTED"),
+        )
+        monkeypatch.setattr(
+            workflows,
+            "request_compute_sync",
+            lambda **_: (_ for _ in ()).throw(RuntimeError("compute down")),
+        )
+
+        response = await self._run_execute_task(
+            {"task_id": "t5", "tb_transfer_id": "5", "x": 1, "y": 2},
+            [],
+        )
+        assert response["status"] == "CANCELLED"
+        assert response["reason"] == "cancelled_during_compute"
+        assert billing.release_credits.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_capture_failure_with_cancel_request(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        _, billing, redis = self._set_state()
+        billing.capture_credits = MagicMock(return_value=False)
+        monkeypatch.setattr(
+            repository,
+            "update_task_status_if_match",
+            AsyncMock(return_value=True),
+        )
+        monkeypatch.setattr(
+            repository,
+            "get_task_status",
+            AsyncMock(return_value="CANCEL_REQUESTED"),
+        )
+        monkeypatch.setattr(
+            workflows,
+            "request_compute_sync",
+            lambda **_: {"sum": 1, "product": 2},
+        )
+        cache_invalidate_task = AsyncMock()
+        monkeypatch.setattr(cache_module, "invalidate_task", cache_invalidate_task)
+
+        response = await self._run_execute_task(
+            {"task_id": "t6", "tb_transfer_id": "6", "x": 2, "y": 2},
+            [],
+        )
+        assert response["status"] == "CANCELLED"
+        assert response["reason"] == "cancelled_after_compute"
+        assert billing.release_credits.call_count == 1
+        cache_invalidate_task.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_compute_hands_request_to_worker(self, monkeypatch: pytest.MonkeyPatch) -> None:
