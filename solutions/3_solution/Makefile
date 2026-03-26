@@ -5,7 +5,7 @@ REPO_ROOT := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 VENV_ACTIVATE := source "$(REPO_ROOT).venv/bin/activate"
 LOG_DIR ?= $(REPO_ROOT)worklog/evidence/latest
 
-.PHONY: help venv sync fmt lint type security deps-audit secrets docker-lint docker-lock smell quality \
+.PHONY: help venv sync migrate fmt lint type security deps-audit secrets docker-lint docker-lock smell quality \
 		test-unit test-integration test-e2e test-fault coverage \
 		up down logs ps wait-ready capture-logs demo demo-python prove full-check
 
@@ -13,6 +13,7 @@ help:
 	@echo "Targets:"
 	@echo "  venv              Create Python 3.12 virtual environment"
 	@echo "  sync              Sync dependencies with uv"
+	@echo "  migrate           Apply Solution 3 SQL migrations to local compose Postgres"
 	@echo "  fmt               Check formatting with ruff"
 	@echo "  lint              Run ruff lint checks"
 	@echo "  type              Run mypy strict type checks"
@@ -44,6 +45,9 @@ venv:
 
 sync:
 	$(VENV_ACTIVATE) && uv sync --dev
+
+migrate:
+	@./scripts/migrate.sh
 
 fmt:
 	$(VENV_ACTIVATE) && ruff format --check src tests_bootstrap

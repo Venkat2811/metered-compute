@@ -18,14 +18,9 @@ def test_main_module_exposes_app_instance() -> None:
 
 def test_constants_match_bootstrap_contract() -> None:
     assert constants.DEFAULT_TASK_STATUS == constants.TaskStatus.PENDING
-    assert constants.TASK_CANCELLABLE_STATUSES == (
-        constants.TaskStatus.PENDING,
-        constants.TaskStatus.RUNNING,
-    )
-    assert constants.TASK_TERMINAL_STATUSES == (
-        constants.TaskStatus.COMPLETED,
-        constants.TaskStatus.FAILED,
-        constants.TaskStatus.CANCELLED,
+    assert frozenset({"PENDING", "RUNNING"}) == constants.TASK_CANCELLABLE_STATUSES
+    assert frozenset({"COMPLETED", "FAILED", "CANCELLED", "EXPIRED"}) == (
+        constants.TASK_TERMINAL_STATUSES
     )
     assert constants.UserRole.ADMIN.value == "admin"
     assert constants.SubscriptionTier.ENTERPRISE.value == "enterprise"

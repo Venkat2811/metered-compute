@@ -57,6 +57,7 @@ What is already real:
 - standalone `solution3` Python package under `src/solution3`
 - reviewer-first Docker Compose stack with Postgres, Redis, RabbitMQ, Hydra, Redpanda, TigerBeetle, API, and worker-shaped processes
 - minimal FastAPI app with `/health` and `/ready`
+- enum-driven SQL migrations plus a host-side `make migrate` / `scripts/migrate.sh` path
 - bootstrap worker entrypoints for `dispatcher`, `projector`, `reconciler`, `worker`, `watchdog`, and `webhook-worker`
 - isolated bootstrap test suite in `tests_bootstrap/`
 
@@ -125,6 +126,7 @@ src/solution3
 make help
 make quality
 make coverage
+make migrate
 make up
 make wait-ready
 make demo

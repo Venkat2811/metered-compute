@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 from pathlib import Path
+from uuid import UUID
 
 from pydantic import PostgresDsn, RedisDsn
 from pydantic_settings import (
@@ -10,6 +11,23 @@ from pydantic_settings import (
     DotEnvSettingsSource,
     PydanticBaseSettingsSource,
     SettingsConfigDict,
+)
+
+from solution3.constants import (
+    RABBITMQ_EXCHANGE_COLDSTART,
+    RABBITMQ_EXCHANGE_PRELOADED,
+    RABBITMQ_QUEUE_COLD,
+    RABBITMQ_QUEUE_HOT_LARGE,
+    RABBITMQ_QUEUE_HOT_MEDIUM,
+    RABBITMQ_QUEUE_HOT_SMALL,
+    REDPANDA_TOPIC_BILLING_CAPTURED,
+    REDPANDA_TOPIC_BILLING_RELEASED,
+    REDPANDA_TOPIC_TASK_CANCELLED,
+    REDPANDA_TOPIC_TASK_COMPLETED,
+    REDPANDA_TOPIC_TASK_EXPIRED,
+    REDPANDA_TOPIC_TASK_FAILED,
+    REDPANDA_TOPIC_TASK_REQUESTED,
+    REDPANDA_TOPIC_TASK_STARTED,
 )
 
 _DEV_ENV = "dev"
@@ -64,6 +82,24 @@ class AppSettings(BaseSettings):
     rabbitmq_url: str = "amqp://guest:guest@rabbitmq:5672/"
     redpanda_bootstrap_servers: str = "redpanda:9092"
     tigerbeetle_endpoint: str = "tigerbeetle:3000"
+    tigerbeetle_cluster_id: int = 0
+    tigerbeetle_ledger_id: int = 1
+
+    redpanda_topic_task_requested: str = REDPANDA_TOPIC_TASK_REQUESTED
+    redpanda_topic_task_started: str = REDPANDA_TOPIC_TASK_STARTED
+    redpanda_topic_task_completed: str = REDPANDA_TOPIC_TASK_COMPLETED
+    redpanda_topic_task_failed: str = REDPANDA_TOPIC_TASK_FAILED
+    redpanda_topic_task_cancelled: str = REDPANDA_TOPIC_TASK_CANCELLED
+    redpanda_topic_task_expired: str = REDPANDA_TOPIC_TASK_EXPIRED
+    redpanda_topic_billing_captured: str = REDPANDA_TOPIC_BILLING_CAPTURED
+    redpanda_topic_billing_released: str = REDPANDA_TOPIC_BILLING_RELEASED
+
+    rabbitmq_exchange_preloaded: str = RABBITMQ_EXCHANGE_PRELOADED
+    rabbitmq_exchange_coldstart: str = RABBITMQ_EXCHANGE_COLDSTART
+    rabbitmq_queue_hot_small: str = RABBITMQ_QUEUE_HOT_SMALL
+    rabbitmq_queue_hot_medium: str = RABBITMQ_QUEUE_HOT_MEDIUM
+    rabbitmq_queue_hot_large: str = RABBITMQ_QUEUE_HOT_LARGE
+    rabbitmq_queue_cold: str = RABBITMQ_QUEUE_COLD
 
     task_cost: int = 10
     max_concurrent_free: int = 1
@@ -84,6 +120,27 @@ class AppSettings(BaseSettings):
 
     worker_loop_bootstrap_timeout_seconds: float = 3.0
     worker_loop_task_timeout_seconds: float = 60.0
+    dispatcher_poll_interval_seconds: float = 1.0
+    projector_commit_interval_seconds: float = 1.0
+    reconciler_poll_interval_seconds: float = 30.0
+    billing_reconcile_stale_after_seconds: int = 720
+
+    admin_api_key: str
+    alice_api_key: str
+    bob_api_key: str
+
+    oauth_admin_client_id: str
+    oauth_admin_client_secret: str
+    oauth_user1_client_id: str
+    oauth_user1_client_secret: str
+    oauth_user2_client_id: str
+    oauth_user2_client_secret: str
+    oauth_admin_tier: str
+    oauth_user1_tier: str
+    oauth_user2_tier: str
+    oauth_admin_user_id: UUID
+    oauth_user1_user_id: UUID
+    oauth_user2_user_id: UUID
 
     @property
     def oauth_jwks_cache_ttl_seconds(self) -> float:
