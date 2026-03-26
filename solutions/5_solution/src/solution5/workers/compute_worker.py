@@ -16,6 +16,11 @@ class ComputeRequest(BaseModel):
     task_id: str
     x: int
     y: int
+    user_id: str | None = None
+    model_class: str | None = None
+
+    class Config:
+        extra = "ignore"
 
 
 @dataclass(frozen=True)

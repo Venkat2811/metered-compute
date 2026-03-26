@@ -329,6 +329,7 @@ def create_app() -> FastAPI:
                     f"{stg.restate_ingress_url}/TaskService/execute_task/send",
                     json={
                         "task_id": task_id,
+                        "user_id": user_id,
                         "tb_transfer_id": transfer_hex,
                         "x": body.x,
                         "y": body.y,

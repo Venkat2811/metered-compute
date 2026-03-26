@@ -5,7 +5,11 @@ from typing import Any
 import httpx
 import pytest
 
-from solution5.workers.compute_gateway import ComputeError, request_compute_sync
+from solution5.workers.compute_gateway import (
+    ComputeError,
+    ComputeTimeoutError,
+    request_compute_sync,
+)
 
 
 class _FakeResponse:
@@ -40,11 +44,25 @@ def test_request_compute_sync_returns_sum_and_product(monkeypatch: pytest.Monkey
     client = _FakeClient([_FakeResponse(200, payload)])
     monkeypatch.setattr(httpx, "Client", lambda *_args, **_kwargs: client)
 
-    result = request_compute_sync(task_id="task", x=3, y=4, base_url="http://compute", timeout_seconds=1.0)
+    result = request_compute_sync(
+        task_id="task",
+        user_id="user-1",
+        model_class="small",
+        x=3,
+        y=4,
+        base_url="http://compute",
+        timeout_seconds=1.0,
+    )
 
     assert result == {"sum": 7, "product": 42}
     assert client.calls[0][0] == "http://compute/compute"
-    assert client.calls[0][1] == {"task_id": "task", "x": 3, "y": 4}
+    assert client.calls[0][1] == {
+        "task_id": "task",
+        "user_id": "user-1",
+        "x": 3,
+        "y": 4,
+        "model_class": "small",
+    }
 
 
 def test_request_compute_sync_retries_after_transient_http_error(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -58,6 +76,8 @@ def test_request_compute_sync_retries_after_transient_http_error(monkeypatch: py
 
     result = request_compute_sync(
         task_id="task",
+        user_id="user-1",
+        model_class="small",
         x=1,
         y=2,
         base_url="http://compute",
@@ -74,14 +94,51 @@ def test_request_compute_sync_raises_if_payload_invalid(monkeypatch: pytest.Monk
     monkeypatch.setattr(httpx, "Client", lambda *_args, **_kwargs: client)
 
     with pytest.raises(ComputeError):
-        request_compute_sync(task_id="task", x=1, y=2, base_url="http://compute", timeout_seconds=1.0)
+        request_compute_sync(
+            task_id="task",
+            user_id="user-1",
+            model_class="small",
+            x=1,
+            y=2,
+            base_url="http://compute",
+            timeout_seconds=1.0,
+        )
 
 
 def test_request_compute_sync_gives_up_after_all_retries(monkeypatch: pytest.MonkeyPatch) -> None:
     client = _FakeClient([httpx.ReadTimeout("timeout"), httpx.ReadTimeout("timeout")])
     monkeypatch.setattr(httpx, "Client", lambda *_args, **_kwargs: client)
 
-    with pytest.raises(httpx.ReadTimeout):
-        request_compute_sync(task_id="task", x=1, y=2, base_url="http://compute", timeout_seconds=0.1, retry_attempts=2)
+    with pytest.raises(ComputeTimeoutError):
+        request_compute_sync(
+            task_id="task",
+            user_id="user-1",
+            model_class="small",
+            x=1,
+            y=2,
+            base_url="http://compute",
+            timeout_seconds=0.1,
+            retry_attempts=2,
+        )
 
+    assert len(client.calls) == 2
+
+
+def test_request_compute_sync_retry_budget_is_enforced(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Retrying should stop once global timeout budget is exhausted."""
+    client = _FakeClient([httpx.ReadTimeout("timeout"), _FakeResponse(200, {"result": {"sum": 8, "product": 9}})])
+    monkeypatch.setattr(httpx, "Client", lambda *_args, **_kwargs: client)
+
+    result = request_compute_sync(
+        task_id="task",
+        user_id="user-1",
+        model_class="small",
+        x=2,
+        y=6,
+        base_url="http://compute",
+        timeout_seconds=2.0,
+        retry_attempts=3,
+    )
+
+    assert result == {"sum": 8, "product": 9}
     assert len(client.calls) == 2

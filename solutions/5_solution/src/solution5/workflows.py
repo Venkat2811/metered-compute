@@ -22,7 +22,7 @@ import structlog
 from solution5 import cache, metrics, repository
 from solution5.billing import Billing
 from solution5.settings import Settings
-from solution5.workers.compute_gateway import ComputeError, request_compute_sync
+from solution5.workers.compute_gateway import ComputeTimeoutError, request_compute_sync
 
 log = structlog.get_logger()
 
@@ -77,6 +77,7 @@ async def execute_task(ctx: restate.Context, request: dict[str, Any]) -> dict[st
     tb_transfer_id = int(str(request["tb_transfer_id"]), 16)
     x: int = int(request["x"])
     y: int = int(request["y"])
+    user_id: str = str(request["user_id"])
 
     pool = _pg_pool()
     billing = _billing()
@@ -164,8 +165,10 @@ async def execute_task(ctx: restate.Context, request: dict[str, Any]) -> dict[st
             "compute",
             request_compute_sync,
             task_id=task_id,
+            user_id=user_id,
             x=x,
             y=y,
+            model_class="default",
             base_url=task_settings.compute_worker_url,
             timeout_seconds=task_settings.compute_timeout_seconds,
             retry_attempts=task_settings.compute_retry_attempts,
@@ -178,11 +181,15 @@ async def execute_task(ctx: restate.Context, request: dict[str, Any]) -> dict[st
         if await _maybe_complete_cancellation():
             return {"status": "CANCELLED", "reason": "cancelled_during_compute"}
 
+        fail_reason = "compute_failed"
+        if isinstance(error, ComputeTimeoutError):
+            fail_reason = "compute_timeout"
+
         await _run_replay_compatible(
             "compute_metric_error",
             metrics.COMPUTE_REQUESTS.labels(result="error").inc,
         )
-        if isinstance(error, ComputeError):
+        if isinstance(error, ComputeTimeoutError):
             await _run_replay_compatible(
                 "compute_timeout_metric",
                 metrics.TASK_TIMEOUT.inc,
@@ -206,7 +213,7 @@ async def execute_task(ctx: restate.Context, request: dict[str, Any]) -> dict[st
                 redis_conn,
                 task_id,
             )
-            return {"status": "FAILED", "reason": "compute_failed"}
+            return {"status": "FAILED", "reason": fail_reason}
 
         current_status = await _run_replay_compatible(
             "read_status_after_compute_failure",

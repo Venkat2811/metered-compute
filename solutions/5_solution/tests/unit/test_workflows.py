@@ -13,6 +13,7 @@ import restate
 from solution5 import cache as cache_module
 from solution5 import repository, workflows
 from solution5.settings import Settings
+from solution5.workers.compute_gateway import ComputeTimeoutError
 
 
 class _DummyCtx:
@@ -36,7 +37,7 @@ class _DummyCtx:
 
 class TestExecuteTaskLifecycle:
     @staticmethod
-    def _set_state() -> tuple[MagicMock, MagicMock, MagicMock]:
+    def _set_state(monkeypatch: pytest.MonkeyPatch) -> tuple[MagicMock, MagicMock, MagicMock]:
         pool = MagicMock()
         billing = MagicMock()
         redis = AsyncMock()
@@ -49,16 +50,18 @@ class TestExecuteTaskLifecycle:
                 "settings": Settings(),
             },
         )
+        monkeypatch.setattr(repository, "get_task_status", AsyncMock(return_value="RUNNING"))
         return pool, billing, redis
 
     @staticmethod
     async def _run_execute_task(request: dict[str, int | str], run_results: list[Any]) -> dict[str, Any]:
         ctx = _DummyCtx(run_results)
+        request.setdefault("user_id", "user-1")
         return await workflows.execute_task(ctx=cast(restate.Context, ctx), request=request)
 
     @pytest.mark.asyncio
     async def test_start_transition_rejects_when_not_pending(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        _, billing, _ = self._set_state()
+        _, billing, _ = self._set_state(monkeypatch)
         billing.capture_credits = MagicMock(return_value=True)
         update_status = AsyncMock(return_value=False)
         monkeypatch.setattr(repository, "update_task_status_if_match", update_status)
@@ -70,7 +73,7 @@ class TestExecuteTaskLifecycle:
 
     @pytest.mark.asyncio
     async def test_capture_failure_marks_failed(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        _, billing, _ = self._set_state()
+        _, billing, _ = self._set_state(monkeypatch)
         billing.capture_credits = MagicMock(return_value=False)
         monkeypatch.setattr(
             repository,
@@ -94,7 +97,7 @@ class TestExecuteTaskLifecycle:
 
     @pytest.mark.asyncio
     async def test_completed_transition_writes_cache(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        _, billing, _ = self._set_state()
+        _, billing, _ = self._set_state(monkeypatch)
         billing.capture_credits = MagicMock(return_value=True)
         monkeypatch.setattr(
             workflows,
@@ -119,7 +122,7 @@ class TestExecuteTaskLifecycle:
 
     @pytest.mark.asyncio
     async def test_compute_failure_marks_task_failed(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        _, billing, redis = self._set_state()
+        _, billing, redis = self._set_state(monkeypatch)
         billing.capture_credits = MagicMock(return_value=False)
         monkeypatch.setattr(
             repository,
@@ -145,7 +148,7 @@ class TestExecuteTaskLifecycle:
 
     @pytest.mark.asyncio
     async def test_compute_failure_with_cancel_request(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        _, billing, _ = self._set_state()
+        _, billing, _ = self._set_state(monkeypatch)
         billing.capture_credits = MagicMock(return_value=False)
         monkeypatch.setattr(
             repository,
@@ -172,8 +175,34 @@ class TestExecuteTaskLifecycle:
         assert billing.release_credits.call_count == 1
 
     @pytest.mark.asyncio
+    async def test_compute_timeout_marks_task_failed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        _, billing, redis = self._set_state(monkeypatch)
+        billing.capture_credits = MagicMock(return_value=False)
+        monkeypatch.setattr(
+            repository,
+            "update_task_status_if_match",
+            AsyncMock(side_effect=[True, True]),
+        )
+        cache_invalidate_task = AsyncMock()
+        monkeypatch.setattr(cache_module, "invalidate_task", cache_invalidate_task)
+        monkeypatch.setattr(
+            workflows,
+            "request_compute_sync",
+            lambda **_: (_ for _ in ()).throw(ComputeTimeoutError("compute timeout")),
+        )
+
+        response = await self._run_execute_task(
+            {"task_id": "t7", "tb_transfer_id": "7", "x": 6, "y": 7},
+            [],
+        )
+        assert response["status"] == "FAILED"
+        assert response["reason"] == "compute_timeout"
+        cache_invalidate_task.assert_awaited_once_with(redis, "t7")
+        assert billing.release_credits.call_count == 0
+
+    @pytest.mark.asyncio
     async def test_capture_failure_with_cancel_request(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        _, billing, redis = self._set_state()
+        _, billing, redis = self._set_state(monkeypatch)
         billing.capture_credits = MagicMock(return_value=False)
         monkeypatch.setattr(
             repository,
@@ -204,7 +233,7 @@ class TestExecuteTaskLifecycle:
 
     @pytest.mark.asyncio
     async def test_compute_hands_request_to_worker(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        _, billing, _ = self._set_state()
+        _, billing, _ = self._set_state(monkeypatch)
         billing.capture_credits = MagicMock(return_value=True)
         worker_call = AsyncMock()
         worker_call.return_value = {"sum": 11, "product": 12}
@@ -223,9 +252,11 @@ class TestExecuteTaskLifecycle:
         assert response["status"] == "COMPLETED"
         worker_call.assert_called_once_with(
             task_id="t5",
+            user_id="user-1",
             x=3,
             y=8,
             base_url=ANY,
             timeout_seconds=ANY,
             retry_attempts=ANY,
+            model_class="default",
         )
