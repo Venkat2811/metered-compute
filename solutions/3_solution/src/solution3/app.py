@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
 import asyncpg
+import tigerbeetle as tb
 from fastapi import APIRouter, FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -18,7 +20,9 @@ from solution3.api.task_write_routes import register_task_write_routes
 from solution3.core.runtime import RuntimeState
 from solution3.core.settings import AppSettings, load_settings
 from solution3.db.migrate import run_migrations
+from solution3.db.repository import list_active_users_with_initial_credits
 from solution3.models.schemas import HealthResponse, ReadyResponse
+from solution3.services.billing import TigerBeetleBilling, resolve_tigerbeetle_addresses
 from solution3.utils.logging import configure_logging, get_logger
 
 logger = get_logger("solution3.app")
@@ -55,10 +59,12 @@ async def _build_runtime(*, settings: AppSettings) -> RuntimeState:
     db_pool = await asyncpg.create_pool(dsn=str(settings.postgres_dsn))
     redis_client = Redis.from_url(str(settings.redis_url), decode_responses=True)
     await redis_client.ping()
+    billing_client = await _bootstrap_tigerbeetle(db_pool=db_pool, settings=settings)
     return RuntimeState(
         settings=settings,
         db_pool=db_pool,
         redis_client=redis_client,
+        billing_client=billing_client,
         started=True,
     )
 
@@ -115,3 +121,33 @@ def create_app(*, initialize_runtime: bool = False) -> FastAPI:
     _register_api_routes(app)
     _register_system_routes(app)
     return app
+
+
+def _build_billing(settings: AppSettings) -> TigerBeetleBilling:
+    client = tb.ClientSync(
+        cluster_id=settings.tigerbeetle_cluster_id,
+        replica_addresses=resolve_tigerbeetle_addresses(settings.tigerbeetle_endpoint),
+    )
+    return TigerBeetleBilling(
+        client=client,
+        ledger_id=settings.tigerbeetle_ledger_id,
+        revenue_account_id=settings.tigerbeetle_revenue_account_id,
+        escrow_account_id=settings.tigerbeetle_escrow_account_id,
+        pending_timeout_seconds=settings.tigerbeetle_pending_transfer_timeout_seconds,
+    )
+
+
+async def _bootstrap_tigerbeetle(
+    *, db_pool: asyncpg.Pool, settings: AppSettings
+) -> TigerBeetleBilling:
+    billing_client = _build_billing(settings)
+    seed_users = await list_active_users_with_initial_credits(db_pool)
+    await asyncio.to_thread(billing_client.ensure_platform_accounts)
+    for user_id, initial_credits in seed_users:
+        await asyncio.to_thread(
+            billing_client.ensure_user_account,
+            user_id,
+            initial_credits=initial_credits,
+        )
+    logger.info("solution3_tigerbeetle_bootstrapped", user_count=len(seed_users))
+    return billing_client

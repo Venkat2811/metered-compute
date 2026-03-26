@@ -6,6 +6,7 @@ import asyncpg
 from redis.asyncio import Redis
 
 from solution3.core.settings import AppSettings
+from solution3.services.billing import TigerBeetleBilling
 
 
 @dataclass(slots=True)
@@ -15,4 +16,5 @@ class RuntimeState:
     settings: AppSettings
     db_pool: asyncpg.Pool | None = None
     redis_client: Redis[str] | None = None
+    billing_client: TigerBeetleBilling | None = None
     started: bool = False

@@ -49,6 +49,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      tigerbeetle:
+        condition: service_healthy
     ports:
       - "9100:9100"
     restart: unless-stopped

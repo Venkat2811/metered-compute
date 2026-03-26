@@ -92,6 +92,14 @@ class FakeConsumer:
         self.subscribed_topics.extend(topics)
 
 
+class FakeConnection:
+    def __init__(self) -> None:
+        self.closed = False
+
+    def close(self) -> None:
+        self.closed = True
+
+
 def test_declare_dispatch_topology_sets_up_exchanges_and_cold_queue() -> None:
     channel = FakeChannel()
 
@@ -278,3 +286,60 @@ def test_main_configures_logging_and_runs_dispatch_loop(monkeypatch: pytest.Monk
 
     assert configure_calls == [False]
     assert main_loop_calls == [(2.5, 250, 25)]
+
+
+def test_main_loop_rebuilds_resources_after_iteration_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    opened: list[int] = []
+    declared_channels: list[FakeChannel] = []
+    consumers = [FakeConsumer(), FakeConsumer()]
+    connections = [FakeConnection(), FakeConnection()]
+    channels = [FakeChannel(), FakeChannel()]
+    stop_handlers: list[object] = []
+    dispatch_calls = 0
+
+    def fake_open_resources(
+        _settings: object,
+    ) -> tuple[
+        dispatcher.DispatcherConsumer, dispatcher.RabbitMQConnection, dispatcher.RabbitMQChannel
+    ]:
+        index = len(opened)
+        opened.append(index)
+        return (
+            cast(dispatcher.DispatcherConsumer, consumers[index]),
+            cast(dispatcher.RabbitMQConnection, connections[index]),
+            cast(dispatcher.RabbitMQChannel, channels[index]),
+        )
+
+    def fake_declare(channel: FakeChannel) -> None:
+        declared_channels.append(channel)
+
+    def fake_dispatch(**_kwargs: object) -> int:
+        nonlocal dispatch_calls
+        dispatch_calls += 1
+        if dispatch_calls == 1:
+            raise RuntimeError("boom")
+        for handler in stop_handlers:
+            assert callable(handler)
+            handler(None, None)
+        return 0
+
+    def fake_signal(_sig: int, handler: object) -> None:
+        stop_handlers.append(handler)
+
+    monkeypatch.setattr(dispatcher, "load_settings", lambda: SimpleNamespace())
+    monkeypatch.setattr(dispatcher, "open_dispatch_resources", fake_open_resources)
+    monkeypatch.setattr(dispatcher, "declare_dispatch_topology", fake_declare)
+    monkeypatch.setattr(dispatcher, "dispatch_polled_messages", fake_dispatch)
+    monkeypatch.setattr("solution3.workers.dispatcher.signal.signal", fake_signal)
+    monkeypatch.setattr("solution3.workers.dispatcher.time.sleep", lambda _seconds: None)
+
+    dispatcher._main_loop(interval_seconds=0.1, poll_timeout_ms=250, max_records=10)
+
+    assert opened == [0, 1]
+    assert declared_channels == []
+    assert connections[0].closed is True
+    assert consumers[0].closed is True
+    assert connections[1].closed is True
+    assert consumers[1].closed is True

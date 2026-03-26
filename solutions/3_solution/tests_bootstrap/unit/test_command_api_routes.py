@@ -22,9 +22,12 @@ from solution3.constants import (
 from solution3.core.runtime import RuntimeState
 from solution3.core.settings import AppSettings
 from solution3.models.domain import AuthUser, TaskCommand, TaskQueryView
+from solution3.services.billing import ReserveCreditsResult
 
 if TYPE_CHECKING:
     from redis.asyncio import Redis
+
+    from solution3.services.billing import TigerBeetleBilling
 
 
 class FakeRedis:
@@ -55,6 +58,33 @@ class FakeRedis:
         next_value = max(0, self.values.get(key, 0) - 1)
         self.values[key] = next_value
         return next_value
+
+
+class FakeBilling:
+    def __init__(
+        self,
+        *,
+        reserve_result: ReserveCreditsResult = ReserveCreditsResult.ACCEPTED,
+        void_ok: bool = True,
+    ) -> None:
+        self.reserve_result = reserve_result
+        self.void_ok = void_ok
+        self.reserve_calls: list[tuple[UUID, UUID, int]] = []
+        self.void_calls: list[UUID] = []
+
+    def reserve_credits(
+        self,
+        *,
+        user_id: UUID | str,
+        transfer_id: UUID | str,
+        amount: int,
+    ) -> ReserveCreditsResult:
+        self.reserve_calls.append((UUID(str(user_id)), UUID(str(transfer_id)), amount))
+        return self.reserve_result
+
+    def void_pending_transfer(self, *, pending_transfer_id: UUID | str) -> bool:
+        self.void_calls.append(UUID(str(pending_transfer_id)))
+        return self.void_ok
 
 
 def _settings() -> SimpleNamespace:
@@ -152,16 +182,19 @@ def _client(
     *,
     current_user: AuthUser | None = None,
     redis_client: FakeRedis | None = None,
-) -> tuple[TestClient, FakeRedis]:
+    billing_client: FakeBilling | None = None,
+) -> tuple[TestClient, FakeRedis, FakeBilling]:
     from solution3.services import auth as auth_module
 
     app = create_app()
     fake_redis = redis_client or FakeRedis()
+    fake_billing = billing_client or FakeBilling()
     runtime_settings = cast(AppSettings, _settings())
     app.state.runtime = RuntimeState(
         settings=runtime_settings,
         db_pool=cast(asyncpg.Pool, object()),
         redis_client=cast("Redis[str]", fake_redis),
+        billing_client=cast("TigerBeetleBilling", fake_billing),
         started=True,
     )
 
@@ -172,7 +205,7 @@ def _client(
     if current_user is not None:
         app.dependency_overrides[auth_module.require_authenticated_user] = _fake_auth
 
-    return TestClient(app, raise_server_exceptions=False), fake_redis
+    return TestClient(app, raise_server_exceptions=False), fake_redis, fake_billing
 
 
 def test_oauth_token_exchanges_api_key_for_access_token(
@@ -202,7 +235,7 @@ def test_oauth_token_exchanges_api_key_for_access_token(
     monkeypatch.setattr(auth_routes, "_validate_oauth_api_key", fake_validate_api_key)
     monkeypatch.setattr(auth_routes, "_exchange_client_credentials_for_token", fake_exchange)
 
-    client, _ = _client(monkeypatch)
+    client, _, _ = _client(monkeypatch)
     with client:
         response = client.post(
             "/v1/oauth/token",
@@ -214,7 +247,7 @@ def test_oauth_token_exchanges_api_key_for_access_token(
 
 
 def test_submit_requires_bearer_token(monkeypatch: pytest.MonkeyPatch) -> None:
-    client, _ = _client(monkeypatch)
+    client, _, _ = _client(monkeypatch)
     with client:
         response = client.post("/v1/task", json={"x": 1, "y": 2})
 
@@ -238,7 +271,7 @@ def test_submit_creates_pending_command_and_caches_hot_path(
 
     monkeypatch.setattr(task_write_routes, "submit_task_command", fake_submit)
 
-    client, redis_client = _client(monkeypatch, current_user=_auth_user())
+    client, redis_client, billing = _client(monkeypatch, current_user=_auth_user())
     with client:
         response = client.post(
             "/v1/task",
@@ -251,6 +284,7 @@ def test_submit_creates_pending_command_and_caches_hot_path(
     assert payload["status"] == "PENDING"
     assert payload["billing_state"] == "RESERVED"
     assert redis_client.hashes[f"task:{created_task.task_id}"]["status"] == "PENDING"
+    assert len(billing.reserve_calls) == 1
 
 
 def test_submit_idempotent_replay_returns_existing_task(
@@ -272,7 +306,7 @@ def test_submit_idempotent_replay_returns_existing_task(
 
     monkeypatch.setattr(task_write_routes, "submit_task_command", fake_submit)
 
-    client, _ = _client(monkeypatch, current_user=_auth_user())
+    client, _, billing = _client(monkeypatch, current_user=_auth_user())
     with client:
         response = client.post(
             "/v1/task",
@@ -282,6 +316,8 @@ def test_submit_idempotent_replay_returns_existing_task(
 
     assert response.status_code == 200
     assert response.json()["task_id"] == str(existing.task_id)
+    assert len(billing.reserve_calls) == 1
+    assert len(billing.void_calls) == 1
 
 
 def test_poll_returns_hot_path_task_state_from_redis(
@@ -295,7 +331,7 @@ def test_poll_returns_hot_path_task_state_from_redis(
         "billing_state": "RESERVED",
     }
 
-    client, _ = _client(monkeypatch, current_user=_auth_user(), redis_client=redis_client)
+    client, _, _ = _client(monkeypatch, current_user=_auth_user(), redis_client=redis_client)
     with client:
         response = client.get(
             "/v1/poll",
@@ -318,7 +354,7 @@ def test_poll_returns_not_found_for_foreign_task(
         "billing_state": "RESERVED",
     }
 
-    client, _ = _client(monkeypatch, current_user=_auth_user(), redis_client=redis_client)
+    client, _, _ = _client(monkeypatch, current_user=_auth_user(), redis_client=redis_client)
     with client:
         response = client.get(
             "/v1/poll",
@@ -349,7 +385,7 @@ def test_cancel_conflict_on_terminal_task(
     monkeypatch.setattr(task_write_routes, "cancel_task_command", fake_cancel)
     monkeypatch.setattr(task_write_routes, "get_task_command", fake_get_task_command)
 
-    client, _ = _client(monkeypatch, current_user=_auth_user())
+    client, _, _ = _client(monkeypatch, current_user=_auth_user())
     with client:
         response = client.post(
             f"/v1/task/{uuid7()}/cancel",
@@ -374,7 +410,7 @@ def test_cancel_returns_not_found_for_foreign_owned_task(
 
     monkeypatch.setattr(task_write_routes, "get_task_command", fake_get_task_command)
 
-    client, _ = _client(monkeypatch, current_user=_auth_user())
+    client, _, _ = _client(monkeypatch, current_user=_auth_user())
     with client:
         response = client.post(
             f"/v1/task/{uuid7()}/cancel",
@@ -386,7 +422,7 @@ def test_cancel_returns_not_found_for_foreign_owned_task(
 
 
 def test_admin_credits_forbidden_for_non_admin(monkeypatch: pytest.MonkeyPatch) -> None:
-    client, _ = _client(monkeypatch, current_user=_auth_user(role=UserRole.USER))
+    client, _, _ = _client(monkeypatch, current_user=_auth_user(role=UserRole.USER))
     with client:
         response = client.post(
             "/v1/admin/credits",
@@ -399,3 +435,57 @@ def test_admin_credits_forbidden_for_non_admin(monkeypatch: pytest.MonkeyPatch) 
         )
 
     assert response.status_code == 403
+
+
+def test_submit_returns_402_when_tigerbeetle_reserve_rejects(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, _, billing = _client(
+        monkeypatch,
+        current_user=_auth_user(),
+        billing_client=FakeBilling(
+            reserve_result=ReserveCreditsResult.INSUFFICIENT_CREDITS,
+        ),
+    )
+    with client:
+        response = client.post(
+            "/v1/task",
+            headers={"Authorization": "Bearer jwt.header.signature", "Idempotency-Key": "idem-123"},
+            json={"x": 1, "y": 2},
+        )
+
+    assert response.status_code == 402
+    assert response.json()["error"]["code"] == "INSUFFICIENT_CREDITS"
+    assert len(billing.reserve_calls) == 1
+
+
+def test_cancel_voids_pending_transfer_before_command_update(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from solution3.api import task_write_routes
+
+    command = _task_command(
+        task_id=uuid7(),
+        user_id=_auth_user().user_id,
+        status=TaskStatus.PENDING,
+        billing_state=BillingState.RESERVED,
+    )
+
+    async def fake_get_task_command(*_: object, **__: object) -> TaskCommand:
+        return command
+
+    async def fake_cancel(*_: object, **__: object) -> bool:
+        return True
+
+    monkeypatch.setattr(task_write_routes, "get_task_command", fake_get_task_command)
+    monkeypatch.setattr(task_write_routes, "cancel_task_command", fake_cancel)
+
+    client, _, billing = _client(monkeypatch, current_user=_auth_user())
+    with client:
+        response = client.post(
+            f"/v1/task/{command.task_id}/cancel",
+            headers={"Authorization": "Bearer jwt.header.signature"},
+        )
+
+    assert response.status_code == 200
+    assert billing.void_calls == [command.tb_pending_transfer_id]

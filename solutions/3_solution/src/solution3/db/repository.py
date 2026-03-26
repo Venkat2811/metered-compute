@@ -100,6 +100,18 @@ async def is_active_api_key_hash(pool: asyncpg.Pool, api_key: str) -> bool:
     return row is not None
 
 
+async def list_active_users_with_initial_credits(pool: asyncpg.Pool) -> list[tuple[UUID, int]]:
+    rows = await pool.fetch(
+        """
+        SELECT user_id, initial_credits
+        FROM cmd.users
+        WHERE is_active = true
+        ORDER BY created_at, user_id
+        """
+    )
+    return [(row["user_id"], int(row["initial_credits"])) for row in rows]
+
+
 async def get_task_command(pool: asyncpg.Pool, task_id: UUID) -> TaskCommand | None:
     row = await pool.fetchrow("SELECT * FROM cmd.task_commands WHERE task_id=$1", task_id)
     return None if row is None else _map_task_command(row)

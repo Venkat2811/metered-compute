@@ -5,6 +5,7 @@ import json
 import signal
 import time
 from collections.abc import Mapping, Sequence
+from contextlib import suppress
 from typing import Protocol, cast
 
 import pika
@@ -84,6 +85,10 @@ class DispatcherConsumerSettings(Protocol):
 
 class DispatcherRabbitSettings(Protocol):
     rabbitmq_url: str
+
+
+class DispatcherRuntimeSettings(DispatcherConsumerSettings, DispatcherRabbitSettings, Protocol):
+    pass
 
 
 def declare_dispatch_topology(channel: RabbitMQChannel) -> None:
@@ -174,6 +179,28 @@ def build_rabbitmq_channel(
     return connection, channel
 
 
+def open_dispatch_resources(
+    settings: DispatcherRuntimeSettings,
+) -> tuple[DispatcherConsumer, RabbitMQConnection, RabbitMQChannel]:
+    consumer = build_redpanda_consumer(settings)
+    connection, channel = build_rabbitmq_channel(settings)
+    declare_dispatch_topology(channel)
+    return consumer, connection, channel
+
+
+def close_dispatch_resources(
+    *,
+    consumer: DispatcherConsumer | None,
+    connection: RabbitMQConnection | None,
+) -> None:
+    if consumer is not None:
+        with suppress(Exception):
+            consumer.close()
+    if connection is not None:
+        with suppress(Exception):
+            connection.close()
+
+
 def dispatch_polled_messages(
     *,
     consumer: DispatcherConsumer,
@@ -210,10 +237,10 @@ def _parse_args() -> argparse.Namespace:
 
 def _main_loop(*, interval_seconds: float, poll_timeout_ms: int, max_records: int) -> None:
     settings = load_settings()
-    consumer = build_redpanda_consumer(settings)
-    connection, channel = build_rabbitmq_channel(settings)
-    declare_dispatch_topology(channel)
     stop_requested = False
+    consumer: DispatcherConsumer | None = None
+    connection: RabbitMQConnection | None = None
+    channel: RabbitMQChannel | None = None
 
     def _stop(*_args: object) -> None:
         nonlocal stop_requested
@@ -231,6 +258,8 @@ def _main_loop(*, interval_seconds: float, poll_timeout_ms: int, max_records: in
     try:
         while not stop_requested:
             try:
+                if consumer is None or connection is None or channel is None:
+                    consumer, connection, channel = open_dispatch_resources(settings)
                 dispatched = dispatch_polled_messages(
                     consumer=consumer,
                     channel=channel,
@@ -242,11 +271,14 @@ def _main_loop(*, interval_seconds: float, poll_timeout_ms: int, max_records: in
                     continue
             except Exception as exc:
                 logger.exception("dispatcher_iteration_failed", error=str(exc))
+                close_dispatch_resources(consumer=consumer, connection=connection)
+                consumer = None
+                connection = None
+                channel = None
 
             time.sleep(interval_seconds)
     finally:
-        consumer.close()
-        connection.close()
+        close_dispatch_resources(consumer=consumer, connection=connection)
         logger.info("dispatcher_stopped")
 
 

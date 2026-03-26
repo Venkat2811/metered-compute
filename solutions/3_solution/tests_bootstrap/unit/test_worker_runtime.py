@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from typing import cast
 from uuid import UUID
 
@@ -45,6 +47,33 @@ class FakeBilling:
     def void_pending_transfer(self, *, pending_transfer_id: UUID | str) -> bool:
         self.void_calls.append(pending_transfer_id)
         return self.void_ok
+
+
+class FakeModelRuntime:
+    def __init__(
+        self, *, result: dict[str, int] | None = None, error: Exception | None = None
+    ) -> None:
+        self.result = result or {"sum": 5}
+        self.error = error
+        self.calls: list[TaskCommand] = []
+
+    async def execute(self, task: TaskCommand) -> dict[str, int]:
+        self.calls.append(task)
+        if self.error is not None:
+            raise self.error
+        return self.result
+
+
+class FakeQueueChannel:
+    def __init__(self) -> None:
+        self.ack_calls: list[int] = []
+        self.nack_calls: list[tuple[int, bool]] = []
+
+    def basic_ack(self, *, delivery_tag: int) -> None:
+        self.ack_calls.append(delivery_tag)
+
+    def basic_nack(self, *, delivery_tag: int, requeue: bool) -> None:
+        self.nack_calls.append((delivery_tag, requeue))
 
 
 def _task_command() -> TaskCommand:
@@ -241,3 +270,155 @@ async def test_handle_completion_stops_when_terminal_update_loses_race(
 
     assert completed is False
     assert redis.hashes == {}
+
+
+def test_task_command_from_event_maps_required_worker_fields() -> None:
+    task = worker.task_command_from_event(
+        {
+            "task_id": "019c6db7-0857-7858-af93-f724ae4fe2c2",
+            "user_id": "47b47338-5355-4edc-860b-846d71a2a75a",
+            "tier": "pro",
+            "mode": "async",
+            "model_class": "small",
+            "x": 2,
+            "y": 3,
+            "cost": 10,
+            "tb_pending_transfer_id": "019c6db7-1439-7ace-bd2b-e1a3bb03328c",
+        }
+    )
+
+    assert task.task_id == UUID("019c6db7-0857-7858-af93-f724ae4fe2c2")
+    assert task.user_id == UUID("47b47338-5355-4edc-860b-846d71a2a75a")
+    assert task.model_class == ModelClass.SMALL
+    assert task.billing_state == BillingState.RESERVED
+
+
+@pytest.mark.asyncio
+async def test_process_task_event_marks_runs_and_completes_successfully(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task = _task_command()
+    runtime = FakeModelRuntime(result={"sum": 9})
+    events: list[tuple[str, object]] = []
+
+    async def fake_mark(*_args: object, **_kwargs: object) -> bool:
+        events.append(("mark", task.task_id))
+        return True
+
+    async def fake_complete(*_args: object, **kwargs: object) -> bool:
+        events.append(("complete", kwargs["result"]))
+        return True
+
+    monkeypatch.setattr(worker, "mark_task_running", fake_mark)
+    monkeypatch.setattr(worker, "handle_task_completion", fake_complete)
+
+    processed = await worker.process_task_event(
+        db_pool=cast(asyncpg.Pool, object()),
+        redis_client=cast(worker.WorkerRedis, FakeRedis()),
+        billing=cast(worker.WorkerBilling, FakeBilling()),
+        runtime=cast(worker.WorkerModelRuntime, runtime),
+        task=task,
+        result_ttl_seconds=300,
+    )
+
+    assert processed is True
+    assert runtime.calls == [task]
+    assert events == [("mark", task.task_id), ("complete", {"sum": 9})]
+
+
+def test_handle_delivery_acks_success(monkeypatch: pytest.MonkeyPatch) -> None:
+    channel = FakeQueueChannel()
+    method = SimpleNamespace(delivery_tag=7)
+
+    async def fake_process(*_args: object, **_kwargs: object) -> bool:
+        return True
+
+    monkeypatch.setattr(worker, "process_task_event", fake_process)
+
+    worker.handle_delivery(
+        channel=cast(worker.WorkerQueueChannel, channel),
+        method=method,
+        body=json.dumps(
+            {
+                "task_id": "019c6db7-0857-7858-af93-f724ae4fe2c2",
+                "user_id": "47b47338-5355-4edc-860b-846d71a2a75a",
+                "tier": "pro",
+                "mode": "async",
+                "model_class": "small",
+                "x": 2,
+                "y": 3,
+                "cost": 10,
+                "tb_pending_transfer_id": "019c6db7-1439-7ace-bd2b-e1a3bb03328c",
+            }
+        ).encode("utf-8"),
+        db_pool=cast(asyncpg.Pool, object()),
+        redis_client=cast(worker.WorkerRedis, FakeRedis()),
+        billing=cast(worker.WorkerBilling, FakeBilling()),
+        runtime=worker.WorkerModelRuntime(worker_id="worker-a"),
+        result_ttl_seconds=300,
+    )
+
+    assert channel.ack_calls == [7]
+    assert channel.nack_calls == []
+
+
+def test_handle_delivery_nacks_requeue_on_processing_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    channel = FakeQueueChannel()
+    method = SimpleNamespace(delivery_tag=9)
+
+    async def fake_process(*_args: object, **_kwargs: object) -> bool:
+        return False
+
+    monkeypatch.setattr(worker, "process_task_event", fake_process)
+
+    worker.handle_delivery(
+        channel=cast(worker.WorkerQueueChannel, channel),
+        method=method,
+        body=json.dumps(
+            {
+                "task_id": "019c6db7-0857-7858-af93-f724ae4fe2c2",
+                "user_id": "47b47338-5355-4edc-860b-846d71a2a75a",
+                "tier": "pro",
+                "mode": "async",
+                "model_class": "small",
+                "x": 2,
+                "y": 3,
+                "cost": 10,
+                "tb_pending_transfer_id": "019c6db7-1439-7ace-bd2b-e1a3bb03328c",
+            }
+        ).encode("utf-8"),
+        db_pool=cast(asyncpg.Pool, object()),
+        redis_client=cast(worker.WorkerRedis, FakeRedis()),
+        billing=cast(worker.WorkerBilling, FakeBilling()),
+        runtime=worker.WorkerModelRuntime(worker_id="worker-a"),
+        result_ttl_seconds=300,
+    )
+
+    assert channel.ack_calls == []
+    assert channel.nack_calls == [(9, True)]
+
+
+def test_main_configures_logging_and_runs_worker_loop(monkeypatch: pytest.MonkeyPatch) -> None:
+    configure_calls: list[bool] = []
+    loop_calls: list[tuple[float, int]] = []
+
+    def fake_main_loop(*, interval_seconds: float, result_ttl_seconds: int) -> None:
+        loop_calls.append((interval_seconds, result_ttl_seconds))
+
+    def fake_configure_logging(*, enable_sensitive: bool) -> None:
+        configure_calls.append(enable_sensitive)
+
+    monkeypatch.setattr(
+        worker,
+        "_parse_args",
+        lambda: SimpleNamespace(interval=2.5, result_ttl_seconds=300),
+    )
+    monkeypatch.setattr(worker, "_main_loop", fake_main_loop)
+    monkeypatch.setattr(worker, "configure_logging", fake_configure_logging)
+
+    worker.main()
+
+    assert configure_calls == [False]
+    assert loop_calls == [(2.5, 300)]

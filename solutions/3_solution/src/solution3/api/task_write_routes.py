@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
@@ -12,6 +13,7 @@ from uuid6 import uuid7
 from solution3.api.error_responses import api_error_response
 from solution3.api.paths import V1_TASK_CANCEL_PATH, V1_TASK_SUBMIT_PATH
 from solution3.constants import (
+    TASK_CANCELLABLE_STATUSES,
     BillingState,
     ModelClass,
     RequestMode,
@@ -29,6 +31,7 @@ from solution3.services.auth import (
     require_scopes,
     runtime_state_from_request,
 )
+from solution3.services.billing import ReserveCreditsResult
 
 AUTHENTICATED_USER = Depends(require_authenticated_user)
 
@@ -114,6 +117,20 @@ async def _cache_task_state(*, request: Request, command: TaskCommand) -> None:
     )
 
 
+async def _release_pending_transfer(
+    *, request: Request, pending_transfer_id: UUID, required: bool = True
+) -> bool:
+    runtime = runtime_state_from_request(request)
+    billing_client = runtime.billing_client
+    if billing_client is None:
+        return not required
+    released = await asyncio.to_thread(
+        billing_client.void_pending_transfer,
+        pending_transfer_id=pending_transfer_id,
+    )
+    return bool(released)
+
+
 def _validate_idempotency(idempotency_key: str | None, *, generated_task_id: UUID) -> str:
     if idempotency_key is None:
         return str(generated_task_id)
@@ -139,6 +156,12 @@ def register_task_write_routes(router: APIRouter) -> None:
                 code="SERVICE_DEGRADED",
                 message="Command store unavailable",
             )
+        if runtime.billing_client is None:
+            return api_error_response(
+                status_code=503,
+                code="SERVICE_DEGRADED",
+                message="Billing backend unavailable",
+            )
 
         generated_task_id = uuid7()
         try:
@@ -162,34 +185,82 @@ def register_task_write_routes(router: APIRouter) -> None:
         effective_cost = task_cost_for_model(
             base_cost=runtime.settings.task_cost, model_class=payload.model_class
         )
-        submit_result = await submit_task_command(
-            runtime.db_pool,
-            task_id=generated_task_id,
+        pending_transfer_id = uuid7()
+        reserve_result = await asyncio.to_thread(
+            runtime.billing_client.reserve_credits,
             user_id=current_user.user_id,
-            tier=current_user.tier,
-            mode=payload.mode,
-            model_class=payload.model_class,
-            x=payload.x,
-            y=payload.y,
-            cost=effective_cost,
-            tb_pending_transfer_id=uuid7(),
-            callback_url=payload.callback_url,
-            idempotency_key=idempotency_value,
-            outbox_payload={
-                "task_id": str(generated_task_id),
-                "user_id": str(current_user.user_id),
-                "tier": current_user.tier.value,
-                "mode": payload.mode.value,
-                "model_class": payload.model_class.value,
-                "x": payload.x,
-                "y": payload.y,
-                "cost": effective_cost,
-            },
+            transfer_id=pending_transfer_id,
+            amount=effective_cost,
         )
+        if reserve_result == ReserveCreditsResult.INSUFFICIENT_CREDITS:
+            return api_error_response(
+                status_code=402,
+                code="INSUFFICIENT_CREDITS",
+                message="Insufficient credits",
+            )
+        if reserve_result != ReserveCreditsResult.ACCEPTED:
+            return api_error_response(
+                status_code=503,
+                code="SERVICE_DEGRADED",
+                message="Billing backend unavailable",
+            )
+
+        if redis_client is not None:
+            active_count_raw = await redis_client.get(_active_counter_key(current_user.user_id))
+            active_count = int(active_count_raw or "0")
+            if active_count >= _max_concurrent(tier=current_user.tier, request=request):
+                await _release_pending_transfer(
+                    request=request, pending_transfer_id=pending_transfer_id
+                )
+                return api_error_response(
+                    status_code=429,
+                    code="TOO_MANY_REQUESTS",
+                    message="Max concurrent tasks reached",
+                )
+        try:
+            submit_result = await submit_task_command(
+                runtime.db_pool,
+                task_id=generated_task_id,
+                user_id=current_user.user_id,
+                tier=current_user.tier,
+                mode=payload.mode,
+                model_class=payload.model_class,
+                x=payload.x,
+                y=payload.y,
+                cost=effective_cost,
+                tb_pending_transfer_id=pending_transfer_id,
+                callback_url=payload.callback_url,
+                idempotency_key=idempotency_value,
+                outbox_payload={
+                    "task_id": str(generated_task_id),
+                    "user_id": str(current_user.user_id),
+                    "tier": current_user.tier.value,
+                    "mode": payload.mode.value,
+                    "model_class": payload.model_class.value,
+                    "x": payload.x,
+                    "y": payload.y,
+                    "cost": effective_cost,
+                    "tb_pending_transfer_id": str(pending_transfer_id),
+                },
+            )
+        except Exception:
+            await _release_pending_transfer(
+                request=request, pending_transfer_id=pending_transfer_id
+            )
+            raise
         created = submit_result.created
         command = submit_result.command
 
         if not created:
+            released = await _release_pending_transfer(
+                request=request, pending_transfer_id=pending_transfer_id
+            )
+            if not released:
+                return api_error_response(
+                    status_code=503,
+                    code="SERVICE_DEGRADED",
+                    message="Billing backend unavailable",
+                )
             same_payload = (
                 command.x == payload.x
                 and command.y == payload.y
@@ -241,6 +312,31 @@ def register_task_write_routes(router: APIRouter) -> None:
             return api_error_response(status_code=404, code="NOT_FOUND", message="Task not found")
         if current_user.role != UserRole.ADMIN and command.user_id != current_user.user_id:
             return api_error_response(status_code=404, code="NOT_FOUND", message="Task not found")
+        if (
+            command.status.value not in TASK_CANCELLABLE_STATUSES
+            or command.billing_state != BillingState.RESERVED
+        ):
+            return api_error_response(
+                status_code=409,
+                code="CONFLICT",
+                message="Task can no longer be cancelled",
+            )
+        if runtime.billing_client is None:
+            return api_error_response(
+                status_code=503,
+                code="SERVICE_DEGRADED",
+                message="Billing backend unavailable",
+            )
+
+        released = await _release_pending_transfer(
+            request=request, pending_transfer_id=command.tb_pending_transfer_id
+        )
+        if not released:
+            return api_error_response(
+                status_code=503,
+                code="SERVICE_DEGRADED",
+                message="Billing backend unavailable",
+            )
 
         cancelled = await cancel_task_command(runtime.db_pool, task_id=task_id)
         if not cancelled:

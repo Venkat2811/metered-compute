@@ -12,6 +12,7 @@ import asyncpg
 import pytest
 from kafka import KafkaConsumer
 
+from solution3.constants import RABBITMQ_EXCHANGE_PRELOADED
 from solution3.workers import dispatcher
 
 
@@ -86,13 +87,19 @@ def test_outbox_relay_and_dispatcher_bridge_over_live_services() -> None:
         "cost": 10,
         "tb_pending_transfer_id": str(uuid4()),
     }
+    probe_queue = f"itest-dispatch-probe-{uuid4()}"
 
     connection, channel = dispatcher.build_rabbitmq_channel(
         SimpleNamespace(rabbitmq_url=_rabbitmq_url())
     )
     dispatcher.declare_dispatch_topology(channel)
     raw_channel = cast(Any, channel)
-    raw_channel.queue_purge(queue="cold")
+    raw_channel.queue_declare(queue=probe_queue, durable=False, auto_delete=True)
+    raw_channel.queue_bind(
+        queue=probe_queue,
+        exchange=RABBITMQ_EXCHANGE_PRELOADED,
+        arguments={"x-match": "all"},
+    )
 
     consumer: KafkaConsumer | None = None
     try:
@@ -130,10 +137,21 @@ def test_outbox_relay_and_dispatcher_bridge_over_live_services() -> None:
         method_frame = None
         header_frame = None
         body = None
-        while time.time() < deadline and method_frame is None:
-            method_frame, header_frame, body = raw_channel.basic_get(queue="cold", auto_ack=True)
+        while time.time() < deadline:
+            method_frame, header_frame, body = raw_channel.basic_get(
+                queue=probe_queue,
+                auto_ack=True,
+            )
             if method_frame is None:
                 time.sleep(0.2)
+                continue
+
+            if header_frame is not None and header_frame.headers.get("task_id") == task_id:
+                break
+
+            method_frame = None
+            header_frame = None
+            body = None
 
         assert method_frame is not None
         assert header_frame is not None
@@ -145,4 +163,5 @@ def test_outbox_relay_and_dispatcher_bridge_over_live_services() -> None:
     finally:
         if consumer is not None:
             consumer.close(autocommit=False, timeout_ms=1000)
+        raw_channel.queue_delete(queue=probe_queue)
         connection.close()
