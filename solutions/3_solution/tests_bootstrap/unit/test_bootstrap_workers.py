@@ -104,7 +104,6 @@ async def test_main_async_logs_heartbeat_and_stops(monkeypatch: pytest.MonkeyPat
     [
         ("solution3.workers.worker", "solution3_worker"),
         ("solution3.workers.dispatcher", "solution3_dispatcher"),
-        ("solution3.workers.outbox_relay", "solution3_outbox_relay"),
         ("solution3.workers.projector", "solution3_projector"),
         ("solution3.workers.reconciler", "solution3_reconciler"),
         ("solution3.workers.watchdog", "solution3_watchdog"),

@@ -63,6 +63,7 @@ What is already real:
 - Hydra-backed JWT verification and scope-aware route protection
 - Redis hot-path task cache for poll reads
 - TigerBeetle billing primitives for account bootstrap and pending/post/void transfer lifecycle
+- real outbox relay process that drains unpublished command events into Redpanda with publish-after-ack semantics
 - worker runtime seams for cold-start model loading, warm-model registration, guarded running transition, and terminal completion updates
 - outbox relay and dispatcher contract seams with unit-tested publish/flush behavior
 - worker-shaped entrypoints for `dispatcher`, `projector`, `reconciler`, `worker`, `watchdog`, and `webhook-worker`
@@ -70,7 +71,7 @@ What is already real:
 
 What is not implemented yet:
 
-- real TigerBeetle, Redpanda, and RabbitMQ client loops across the full submit -> relay -> dispatch -> worker path
+- dispatcher and worker consume loops over the real Redpanda -> RabbitMQ path
 - end-to-end billing capture/release over the real worker dispatch path
 - projector and rebuild flows from the event backbone
 - full CQRS query projection pipeline

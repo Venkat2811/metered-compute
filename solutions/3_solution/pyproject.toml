@@ -27,6 +27,7 @@ dependencies = [
   "opentelemetry-sdk==1.37.0",
   "opentelemetry-exporter-otlp-proto-http==1.37.0",
   "tigerbeetle==0.16.68",
+  "kafka-python==2.3.0",
 ]
 
 [dependency-groups]
@@ -80,7 +81,16 @@ warn_unreachable = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["asyncpg", "structlog", "tigerbeetle", "tigerbeetle.*", "pika", "pika.*"]
+module = [
+  "asyncpg",
+  "structlog",
+  "tigerbeetle",
+  "tigerbeetle.*",
+  "pika",
+  "pika.*",
+  "kafka",
+  "kafka.*",
+]
 ignore_missing_imports = true
 
 [tool.setuptools]

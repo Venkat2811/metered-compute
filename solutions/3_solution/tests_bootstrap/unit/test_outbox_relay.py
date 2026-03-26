@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from contextlib import suppress
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from typing import cast
 from uuid import UUID, uuid4
 
@@ -16,6 +18,7 @@ class FakeProducer:
     def __init__(self) -> None:
         self.messages: list[dict[str, object]] = []
         self.flush_calls = 0
+        self.close_calls = 0
 
     def produce(
         self,
@@ -36,6 +39,55 @@ class FakeProducer:
 
     def flush(self) -> None:
         self.flush_calls += 1
+
+    def close(self) -> None:
+        self.close_calls += 1
+
+
+class FakeKafkaFuture:
+    def __init__(self, *, error: Exception | None = None) -> None:
+        self.error = error
+        self.timeouts: list[float | None] = []
+
+    def get(self, timeout: float | None = None) -> object:
+        self.timeouts.append(timeout)
+        if self.error is not None:
+            raise self.error
+        return {"offset": 1}
+
+
+class FakeKafkaProducerClient:
+    def __init__(self, futures: list[FakeKafkaFuture] | None = None) -> None:
+        self.futures = list(futures or [])
+        self.sent: list[dict[str, object]] = []
+        self.flush_timeouts: list[float | None] = []
+        self.close_timeouts: list[float | None] = []
+
+    def send(
+        self,
+        topic: str,
+        *,
+        key: bytes,
+        value: bytes,
+        headers: list[tuple[str, bytes]],
+    ) -> FakeKafkaFuture:
+        future = self.futures.pop(0) if self.futures else FakeKafkaFuture()
+        self.sent.append(
+            {
+                "topic": topic,
+                "key": key,
+                "value": value,
+                "headers": headers,
+                "future": future,
+            }
+        )
+        return future
+
+    def flush(self, timeout: float | None = None) -> None:
+        self.flush_timeouts.append(timeout)
+
+    def close(self, timeout: float | None = None) -> None:
+        self.close_timeouts.append(timeout)
 
 
 def _event(*, topic: str = "tasks.requested") -> OutboxEventRecord:
@@ -139,3 +191,117 @@ async def test_relay_once_does_not_mark_events_when_publish_fails(
         )
 
     assert mark_called is False
+
+
+def test_redpanda_relay_producer_flushes_and_waits_for_delivery() -> None:
+    client = FakeKafkaProducerClient()
+    producer = outbox_relay.RedpandaRelayProducer(
+        producer=client,
+        flush_timeout_seconds=7.0,
+        delivery_timeout_seconds=11.0,
+    )
+
+    producer.produce(
+        topic="tasks.requested",
+        key=b"event-1",
+        value=b'{"task_id":"123"}',
+        headers={"event_id": "event-1", "event_type": "task.requested"},
+    )
+    producer.flush()
+    producer.close()
+
+    assert client.sent == [
+        {
+            "topic": "tasks.requested",
+            "key": b"event-1",
+            "value": b'{"task_id":"123"}',
+            "headers": [("event_id", b"event-1"), ("event_type", b"task.requested")],
+            "future": client.sent[0]["future"],
+        }
+    ]
+    future = cast(FakeKafkaFuture, client.sent[0]["future"])
+    assert client.flush_timeouts == [7.0]
+    assert future.timeouts == [11.0]
+    assert client.close_timeouts == [7.0]
+
+
+def test_redpanda_relay_producer_surfaces_delivery_failures() -> None:
+    future = FakeKafkaFuture(error=RuntimeError("delivery failed"))
+    client = FakeKafkaProducerClient(futures=[future])
+    producer = outbox_relay.RedpandaRelayProducer(producer=client)
+
+    producer.produce(
+        topic="tasks.requested",
+        key=b"event-1",
+        value=b"{}",
+        headers={"event_id": "event-1"},
+    )
+
+    with pytest.raises(RuntimeError, match="delivery failed"):
+        producer.flush()
+
+
+def test_build_redpanda_producer_uses_solution_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    class FakeKafkaProducer:
+        def __init__(self, **kwargs: object) -> None:
+            captured.update(kwargs)
+
+        def send(
+            self,
+            topic: str,
+            *,
+            key: bytes,
+            value: bytes,
+            headers: list[tuple[str, bytes]],
+        ) -> FakeKafkaFuture:
+            _ = (topic, key, value, headers)
+            return FakeKafkaFuture()
+
+        def flush(self, timeout: float | None = None) -> None:
+            _ = timeout
+
+        def close(self, timeout: float | None = None) -> None:
+            _ = timeout
+
+    monkeypatch.setattr(outbox_relay, "KafkaProducer", FakeKafkaProducer)
+
+    producer = outbox_relay.build_redpanda_producer(
+        SimpleNamespace(redpanda_bootstrap_servers="redpanda:9092,redpanda:19092")
+    )
+
+    assert isinstance(producer, outbox_relay.RedpandaRelayProducer)
+    assert captured["bootstrap_servers"] == ["redpanda:9092", "redpanda:19092"]
+    assert captured["acks"] == "all"
+    assert captured["client_id"] == "solution3-outbox-relay"
+
+
+def test_main_configures_logging_and_runs_async_main(monkeypatch: pytest.MonkeyPatch) -> None:
+    configure_calls: list[bool] = []
+    async_calls: list[tuple[float, int]] = []
+
+    async def fake_main_async(*, interval_seconds: float, batch_size: int) -> None:
+        async_calls.append((interval_seconds, batch_size))
+
+    def fake_configure_logging(*, enable_sensitive: bool) -> None:
+        configure_calls.append(enable_sensitive)
+
+    def fake_asyncio_run(coro: object) -> None:
+        assert hasattr(coro, "send")
+        with suppress(StopIteration):
+            coro.send(None)
+
+    monkeypatch.setattr(
+        outbox_relay,
+        "_parse_args",
+        lambda: SimpleNamespace(interval=2.5, batch_size=25),
+    )
+    monkeypatch.setattr(outbox_relay, "_main_async", fake_main_async)
+    monkeypatch.setattr(outbox_relay, "configure_logging", fake_configure_logging)
+    monkeypatch.setattr("solution3.workers.outbox_relay.asyncio.run", fake_asyncio_run)
+
+    outbox_relay.main()
+
+    assert configure_calls == [False]
+    assert async_calls == [(2.5, 25)]
