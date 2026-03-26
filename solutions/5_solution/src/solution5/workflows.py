@@ -62,8 +62,21 @@ async def execute_task(ctx: restate.Context, request: dict[str, Any]) -> dict[st
     billing = _billing()
     redis_conn = _redis()
 
-    # ── Control: mark running (idempotent — safe to replay) ──
-    await repository.update_task_status(pool, task_id, "RUNNING")
+    # ── Control: mark running (guarded — safe to replay) ──
+    started = await repository.update_task_status_if_match(
+        pool,
+        task_id=task_id,
+        status="RUNNING",
+        expected_status="PENDING",
+    )
+    if not started:
+        current_status = await repository.get_task_status(pool, task_id)
+        if current_status in {"RUNNING", "COMPLETED", "FAILED", "CANCELLED"}:
+            # Replay or duplicate event. If already terminal, return terminal result.
+            return {"status": current_status}
+        # Could be missing row (corrupt request) or unexpected transition.
+        log.warning("workflow_start_transition_failed", task_id=task_id, status=current_status)
+        return {"status": "REJECTED"}
 
     # ── Data plane: compute result ──
     # In production this would dispatch to a GPU worker pool and await the result.
@@ -74,7 +87,12 @@ async def execute_task(ctx: restate.Context, request: dict[str, Any]) -> dict[st
     captured: bool = await ctx.run("capture_credits", lambda: billing.capture_credits(tb_transfer_id))
 
     if not captured:
-        await repository.update_task_status(pool, task_id, "FAILED")
+        await repository.update_task_status_if_match(
+            pool,
+            task_id=task_id,
+            status="FAILED",
+            expected_status="RUNNING",
+        )
         metrics.TASK_FAILED.inc()
         log.warning("workflow_capture_failed", task_id=task_id)
         return {"status": "FAILED", "reason": "credit_capture_failed"}
@@ -82,7 +100,18 @@ async def execute_task(ctx: restate.Context, request: dict[str, Any]) -> dict[st
     metrics.TASK_COMPLETED.inc()
 
     # ── Control: store result + update cache (idempotent) ──
-    await repository.update_task_status(pool, task_id, "COMPLETED", result=result)
+    updated = await repository.update_task_status_if_match(
+        pool,
+        task_id=task_id,
+        status="COMPLETED",
+        expected_status="RUNNING",
+        result=result,
+    )
+    if not updated:
+        current_status = await repository.get_task_status(pool, task_id)
+        if current_status in {"COMPLETED", "FAILED", "CANCELLED"}:
+            return {"status": current_status}
+        return {"status": "REJECTED"}
 
     await cache.cache_task(
         redis_conn,

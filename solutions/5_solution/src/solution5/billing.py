@@ -152,3 +152,11 @@ class Billing:
             return 0
         a = accounts[0]
         return a.credits_posted - a.debits_posted - a.debits_pending
+
+    def is_ready(self) -> bool:
+        """Best-effort health probe: can query known platform accounts."""
+        try:
+            self._client.lookup_accounts([self._revenue_id, self._escrow_id])
+            return True
+        except Exception:
+            return False

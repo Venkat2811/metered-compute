@@ -31,7 +31,7 @@ async def get_user_by_api_key(pool: asyncpg.Pool, api_key: str) -> dict[str, Any
     """Look up user by plaintext API key (like Sol 0)."""
     row = await pool.fetchrow(
         """
-        SELECT u.user_id, u.name, u.credits
+        SELECT u.user_id, u.name, u.credits, u.role
         FROM api_keys k JOIN users u ON k.user_id = u.user_id
         WHERE k.api_key = $1 AND k.is_active = true
         """,
@@ -114,6 +114,55 @@ async def update_task_status(
             task_id,
             status,
         )
+
+
+async def update_task_status_if_match(
+    pool: asyncpg.Pool,
+    task_id: str,
+    status: str,
+    *,
+    expected_status: str,
+    result: dict[str, Any] | None = None,
+) -> bool:
+    """Update task status only when currently in expected_status.
+
+    Returns True only when exactly one row was updated.
+    """
+    if result is not None:
+        import json
+
+        update_result = await pool.execute(
+            """
+            UPDATE tasks
+            SET status = $2, result = $3::jsonb, updated_at = now()
+            WHERE task_id = $1::uuid AND status = $4
+            """,
+            task_id,
+            status,
+            json.dumps(result),
+            expected_status,
+        )
+    else:
+        update_result = await pool.execute(
+            """
+            UPDATE tasks
+            SET status = $2, updated_at = now()
+            WHERE task_id = $1::uuid AND status = $3
+            """,
+            task_id,
+            status,
+            expected_status,
+        )
+
+    return int(update_result.split(" ", 1)[1].strip()) == 1
+
+
+async def get_task_status(pool: asyncpg.Pool, task_id: str) -> str | None:
+    """Fetch only the task status."""
+    row = await pool.fetchval("SELECT status FROM tasks WHERE task_id = $1::uuid", task_id)
+    if row is None:
+        return None
+    return str(row)
 
 
 async def update_user_credits(pool: asyncpg.Pool, user_id: str, credits: int) -> None:

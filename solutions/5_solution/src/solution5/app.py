@@ -64,6 +64,16 @@ class AdminCreditsResponse(BaseModel):
     new_balance: int
 
 
+def _auth_payload_from_cache(payload: dict[str, str] | None) -> dict[str, str] | None:
+    if not payload:
+        return None
+    return {
+        "user_id": payload["user_id"],
+        "name": payload.get("name", ""),
+        "role": payload.get("role", "user"),
+    }
+
+
 # ── Application factory ───────────────────────────────────────────
 
 
@@ -164,16 +174,25 @@ def create_app() -> FastAPI:
         api_key = auth[7:]
 
         cached = await cache.get_cached_auth(request.app.state.redis, api_key)
-        if cached:
-            return cached
+        normalized_cached = _auth_payload_from_cache(cached)
+        if normalized_cached:
+            return normalized_cached
 
         user = await repository.get_user_by_api_key(request.app.state.pg_pool, api_key)
         if not user:
             raise HTTPException(401, "Invalid API key")
 
-        user_dict = {"user_id": str(user["user_id"]), "name": user["name"]}
+        user_dict = {
+            "user_id": str(user["user_id"]),
+            "name": user["name"],
+            "role": str(user.get("role", "user")),
+        }
         await cache.cache_auth(request.app.state.redis, api_key, user_dict)
         return user_dict
+
+    def _ensure_admin(user: dict[str, str]) -> None:
+        if user.get("role") != "admin":
+            raise HTTPException(403, "Admin role required")
 
     # ── Routes ─────────────────────────────────────────────────────
 
@@ -221,10 +240,9 @@ def create_app() -> FastAPI:
 
         await cache.cache_task(request.app.state.redis, task_id, task)
 
-        # Fire-and-forget: invoke Restate durable workflow
         try:
             async with httpx.AsyncClient() as client:
-                await client.post(
+                response = await client.post(
                     f"{stg.restate_ingress_url}/TaskService/execute_task/send",
                     json={
                         "task_id": task_id,
@@ -235,20 +253,52 @@ def create_app() -> FastAPI:
                     headers={"idempotency-key": task_id},
                     timeout=5,
                 )
+                if response.status_code >= 400:
+                    raise HTTPException(
+                        503,
+                        f"Execution orchestration failed: {response.status_code}",
+                    )
+        except HTTPException:
+            # Keep financial state consistent if Restate invocation could not be started.
+            billing.release_credits(transfer_int)
+            await repository.update_task_status(
+                request.app.state.pg_pool,
+                task_id,
+                "FAILED",
+            )
+            await cache.invalidate_task(request.app.state.redis, task_id)
+            raise
         except Exception as e:
             log.warning("restate_invoke_failed", task_id=task_id, error=str(e))
+            billing.release_credits(transfer_int)
+            await repository.update_task_status(
+                request.app.state.pg_pool,
+                task_id,
+                "FAILED",
+            )
+            await cache.invalidate_task(request.app.state.redis, task_id)
+            raise HTTPException(
+                503,
+                "Execution orchestration unavailable. Credits have been released.",
+            ) from e
 
         return SubmitResponse(task_id=task_id, status="PENDING")
 
     @app.get("/v1/poll")
     async def poll_task(task_id: str, request: Request) -> dict[str, str]:
+        user = await authenticate(request)
+
         cached = await cache.get_cached_task(request.app.state.redis, task_id)
         if cached:
+            if cached.get("user_id") != user["user_id"]:
+                raise HTTPException(403, "Not your task")
             return cached
 
         task = await repository.get_task(request.app.state.pg_pool, task_id)
         if not task:
             raise HTTPException(404, "Task not found")
+        if str(task["user_id"]) != user["user_id"]:
+            raise HTTPException(403, "Not your task")
 
         task_dict = {k: str(v) for k, v in task.items() if v is not None}
         await cache.cache_task(request.app.state.redis, task_id, task_dict)
@@ -267,19 +317,33 @@ def create_app() -> FastAPI:
         if task["status"] != "PENDING":
             raise HTTPException(409, f"Cannot cancel task in {task['status']} state")
 
+        cancelled = await repository.update_task_status_if_match(
+            request.app.state.pg_pool,
+            task_id,
+            status="CANCELLED",
+            expected_status="PENDING",
+        )
+        if not cancelled:
+            raise HTTPException(409, "Task state changed while cancel was processed")
+
         transfer_int = int(task["tb_transfer_id"], 16)
         if not billing.release_credits(transfer_int):
+            await repository.update_task_status_if_match(
+                request.app.state.pg_pool,
+                task_id,
+                status="PENDING",
+                expected_status="CANCELLED",
+            )
             raise HTTPException(500, "Credit release failed")
         metrics.TASK_CANCELLED.inc()
-
-        await repository.update_task_status(request.app.state.pg_pool, task_id, "CANCELLED")
         await cache.invalidate_task(request.app.state.redis, task_id)
 
         return CancelResponse(task_id=task_id, status="CANCELLED", credits_refunded=task["cost"])
 
     @app.post("/v1/admin/credits", response_model=AdminCreditsResponse)
     async def admin_credits(body: AdminCreditsRequest, request: Request) -> AdminCreditsResponse:
-        await authenticate(request)
+        user = await authenticate(request)
+        _ensure_admin(user)
         billing: Billing = request.app.state.billing
 
         billing.ensure_user_account(body.user_id)
@@ -308,6 +372,19 @@ def create_app() -> FastAPI:
             checks["redis"] = "ok"
         except Exception:
             checks["redis"] = "error"
+        try:
+            if request.app.state.billing.is_ready():
+                checks["tigerbeetle"] = "ok"
+            else:
+                checks["tigerbeetle"] = "error"
+        except Exception:
+            checks["tigerbeetle"] = "error"
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(f"{request.app.state.settings.restate_admin_url}/health")
+                checks["restate"] = "ok" if resp.status_code == 200 else "error"
+        except Exception:
+            checks["restate"] = "error"
 
         all_ok = all(v == "ok" for v in checks.values())
         return JSONResponse(checks, status_code=200 if all_ok else 503)

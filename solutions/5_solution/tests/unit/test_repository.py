@@ -161,6 +161,35 @@ class TestUpdateTaskStatus:
         assert "COMPLETED" in call_args
 
 
+class TestUpdateTaskStatusIfMatch:
+    @pytest.mark.asyncio
+    async def test_updates_status_if_expected_matches(self) -> None:
+        pool = MagicMock()
+        pool.execute = AsyncMock(return_value="UPDATE 1")
+        updated = await repository.update_task_status_if_match(
+            pool,
+            task_id="t-1",
+            status="RUNNING",
+            expected_status="PENDING",
+        )
+        assert updated is True
+        pool.execute.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_skips_update_if_expected_mismatch(self) -> None:
+        pool = MagicMock()
+        pool.execute = AsyncMock(return_value="UPDATE 0")
+        updated = await repository.update_task_status_if_match(
+            pool,
+            task_id="t-1",
+            status="COMPLETED",
+            expected_status="RUNNING",
+            result={"sum": 1, "product": 2},
+        )
+        assert updated is False
+        pool.execute.assert_awaited_once()
+
+
 class TestUpdateUserCredits:
     @pytest.mark.asyncio
     async def test_mirrors_balance_to_pg(self) -> None:

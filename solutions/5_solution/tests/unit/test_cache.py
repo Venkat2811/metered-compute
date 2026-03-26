@@ -28,7 +28,7 @@ class TestCacheAuth:
         await cache.cache_auth(r, "sk-test-key", user)
         r.hset.assert_awaited_once_with(
             "auth:sk-test-key",
-            mapping={"user_id": "abc-123", "name": "alice"},
+            mapping={"user_id": "abc-123", "name": "alice", "role": "user"},
         )
         r.expire.assert_awaited_once_with("auth:sk-test-key", cache.AUTH_TTL)
 

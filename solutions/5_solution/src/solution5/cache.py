@@ -15,7 +15,14 @@ TASK_TTL = 3600  # 1 hour
 
 async def cache_auth(r: redis.Redis, api_key: str, user: dict[str, Any]) -> None:
     """Cache user info by API key hash."""
-    await r.hset(f"auth:{api_key}", mapping={"user_id": str(user["user_id"]), "name": user["name"]})  # type: ignore[misc]
+    await r.hset(
+        f"auth:{api_key}",
+        mapping={
+            "user_id": str(user["user_id"]),
+            "name": user["name"],
+            "role": str(user.get("role", "user")),
+        },
+    )  # type: ignore[misc]
     await r.expire(f"auth:{api_key}", AUTH_TTL)
 
 
