@@ -18,10 +18,16 @@ async def run_migrations(pool: asyncpg.Pool, migrations_dir: str = "migrations")
     async with pool.acquire() as conn:
         for sql_file in sorted(migration_path.glob("*.sql")):
             sql = sql_file.read_text()
+            # Each migration should be isolated. If one file reruns and hits
+            # "already exists"/"already seeded", the connection must be rolled
+            # back cleanly before moving to the next file.
             try:
-                await conn.execute(sql)
+                async with conn.transaction():
+                    await conn.execute(sql)
                 log.info("migration_applied", file=sql_file.name)
             except asyncpg.exceptions.DuplicateTableError:
+                log.debug("migration_skipped_exists", file=sql_file.name)
+            except asyncpg.exceptions.DuplicateObjectError:
                 log.debug("migration_skipped_exists", file=sql_file.name)
             except asyncpg.exceptions.UniqueViolationError:
                 log.debug("migration_skipped_seed_exists", file=sql_file.name)

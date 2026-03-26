@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import socket
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from typing import Any
 
 import asyncpg
@@ -67,11 +67,92 @@ class AdminCreditsResponse(BaseModel):
 def _auth_payload_from_cache(payload: dict[str, str] | None) -> dict[str, str] | None:
     if not payload:
         return None
+
+    role = payload.get("role")
+    user_id = payload.get("user_id")
+    if not role or not user_id:
+        # If cache was created before role became part of the auth payload,
+        # fall back to DB lookup to avoid stale privilege information.
+        return None
+
     return {
-        "user_id": payload["user_id"],
+        "user_id": user_id,
         "name": payload.get("name", ""),
-        "role": payload.get("role", "user"),
+        "role": role,
     }
+
+
+async def _is_restate_service_registered(admin_url: str, service_name: str = "TaskService") -> bool:
+    """Return True when Restate reports the deployment for the expected service."""
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(f"{admin_url}/deployments", timeout=5)
+        if resp.status_code != 200:
+            return False
+
+        payload = resp.json()
+        deployments = payload.get("deployments", [])
+        return any(
+            any(service.get("name") == service_name for service in deployment.get("services", []))
+            for deployment in deployments
+        )
+
+
+async def _register_restate_service(
+    admin_url: str,
+    restate_uri: str,
+    *,
+    max_attempts: int = 12,
+) -> bool:
+    """Register the API container as a Restate deployment and wait until service is visible."""
+    for attempt in range(max_attempts):
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{admin_url}/deployments",
+                    json={"uri": restate_uri, "use_http_11": True},
+                    headers={"content-type": "application/json"},
+                    timeout=10,
+                )
+                if response.status_code in (200, 201, 409) and await _is_restate_service_registered(admin_url):
+                    return True
+        except Exception as exc:
+            log.warning(
+                "restate_registration_attempt_failed",
+                attempt=attempt,
+                error=str(exc),
+            )
+
+        await asyncio.sleep(1)
+
+    return False
+
+
+async def _ensure_restate_registration(
+    app: FastAPI,
+    settings: Settings,
+) -> bool:
+    """Ensure Restate is registered and usable, with in-process synchronization."""
+    # Fast path.
+    if getattr(app.state, "restate_ready", False):
+        return True
+
+    async with app.state.restate_registration_lock:
+        if app.state.restate_ready:
+            return True
+
+        ready = await _register_restate_service(
+            admin_url=settings.restate_admin_url,
+            restate_uri="http://api:8000/restate",
+            max_attempts=12,
+        )
+        app.state.restate_ready = ready
+        app.state._restate_state["restate_ready"] = ready
+        workflow_state["restate_ready"] = ready
+        if ready:
+            log.info("restate_registered")
+        else:
+            log.error("restate_registration_failed")
+        return ready
 
 
 # ── Application factory ───────────────────────────────────────────
@@ -126,35 +207,32 @@ def create_app() -> FastAPI:
             "redis": redis_conn,
             "billing": billing,
             "settings": settings,
+            "restate_ready": False,
         }
         workflow_state.update(shared)
         app.state.pg_pool = pg_pool
         app.state.redis = redis_conn
         app.state.billing = billing
         app.state.settings = settings
+        app.state.restate_ready = False
+        app.state._restate_state = shared
+        app.state.restate_registration_lock = asyncio.Lock()
 
-        # ── Register with Restate runtime (delayed — server must be listening first) ──
-        async def _register_restate() -> None:
-            await asyncio.sleep(2)  # wait for uvicorn to bind
-            for attempt in range(5):
-                try:
-                    async with httpx.AsyncClient() as client:
-                        resp = await client.post(
-                            f"{settings.restate_admin_url}/deployments",
-                            json={"uri": "http://api:8000/restate", "use_http_11": True},
-                            headers={"content-type": "application/json"},
-                            timeout=10,
-                        )
-                        log.info("restate_registered", status=resp.status_code)
-                        if resp.status_code in (200, 201):
-                            return
-                except Exception as e:
-                    log.warning("restate_registration_attempt", attempt=attempt, error=str(e))
-                await asyncio.sleep(2)
+        async def _async_register_restate() -> None:
+            try:
+                await _ensure_restate_registration(app, settings)
+            except Exception:
+                log.exception("restate_registration_task_failed")
 
-        asyncio.create_task(_register_restate())
+        app.state.restate_registration_task = asyncio.create_task(_async_register_restate())
 
         yield
+
+        registration_task = getattr(app.state, "restate_registration_task", None)
+        if registration_task is not None and not registration_task.done():
+            registration_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await registration_task
 
         await pg_pool.close()
         await redis_conn.aclose()
@@ -202,6 +280,9 @@ def create_app() -> FastAPI:
         user_id = user["user_id"]
         billing: Billing = request.app.state.billing
         stg: Settings = request.app.state.settings
+
+        if not request.app.state.restate_ready and not await _ensure_restate_registration(request.app, stg):
+            raise HTTPException(503, "Execution control plane is not ready")
 
         task_id = str(uuid6.uuid7())
         transfer_hex = uuid6.uuid7().hex
@@ -385,6 +466,14 @@ def create_app() -> FastAPI:
                 checks["restate"] = "ok" if resp.status_code == 200 else "error"
         except Exception:
             checks["restate"] = "error"
+
+        checks["restate_service"] = "ok" if getattr(request.app.state, "restate_ready", False) else "error"
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(f"{request.app.state.settings.compute_worker_url}/health")
+                checks["compute"] = "ok" if resp.status_code == 200 else "error"
+        except Exception:
+            checks["compute"] = "error"
 
         all_ok = all(v == "ok" for v in checks.values())
         return JSONResponse(checks, status_code=200 if all_ok else 503)

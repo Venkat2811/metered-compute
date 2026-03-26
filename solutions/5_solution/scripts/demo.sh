@@ -2,7 +2,7 @@
 set -euo pipefail
 
 BASE="${API_BASE_URL:-http://localhost:8000}"
-KEY="sk-alice-secret-key-001"
+KEY="${DEMO_API_KEY:-sk-alice-secret-key-001}"
 AUTH="Authorization: Bearer $KEY"
 
 echo "══════════════════════════════════════════════════"
@@ -40,7 +40,7 @@ echo
 # Poll until complete
 echo "5. Polling task $TASK_ID..."
 for i in $(seq 1 20); do
-  POLL=$(curl -sf "$BASE/v1/poll?task_id=$TASK_ID")
+  POLL=$(curl -sf "$BASE/v1/poll?task_id=$TASK_ID" -H "$AUTH")
   STATUS=$(echo "$POLL" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status','unknown'))" 2>/dev/null || echo "unknown")
   echo "   [$i] status=$STATUS"
   if [ "$STATUS" = "COMPLETED" ]; then

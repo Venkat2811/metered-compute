@@ -6,6 +6,17 @@ TASK_SUBMITTED = Counter("task_submitted_total", "Tasks submitted", ["status"])
 TASK_COMPLETED = Counter("task_completed_total", "Tasks completed")
 TASK_CANCELLED = Counter("task_cancelled_total", "Tasks cancelled")
 TASK_FAILED = Counter("task_failed_total", "Tasks failed")
+TASK_TIMEOUT = Counter("task_timeout_total", "Tasks failed due to compute timeout")
+
+COMPUTE_REQUESTS = Counter(
+    "compute_requests_total",
+    "Compute worker requests",
+    ["result"],
+)
+COMPUTE_LATENCY_SECONDS = Histogram(
+    "compute_request_seconds",
+    "Compute worker request latency",
+)
 
 CREDIT_RESERVED = Counter("credit_reserved_total", "Credits reserved via TB")
 CREDIT_CAPTURED = Counter("credit_captured_total", "Credits captured via TB")

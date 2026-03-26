@@ -25,6 +25,7 @@ import httpx
 
 DEFAULT_BASE_URL = "http://localhost:8000"
 ALICE_KEY = os.getenv("TEST_ALICE_API_KEY", "sk-alice-secret-key-001")
+ADMIN_KEY = os.getenv("TEST_ADMIN_API_KEY", ALICE_KEY)
 BOB_KEY = os.getenv("TEST_BOB_API_KEY", "sk-bob-secret-key-002")
 ALICE_ID = "a0000000-0000-0000-0000-000000000001"
 BOB_ID = "b0000000-0000-0000-0000-000000000002"
@@ -137,7 +138,7 @@ def scenario_admin_topup(client: httpx.Client) -> dict[str, Any]:
     new_balance = _admin_topup(
         client,
         user_id=ALICE_ID,
-        api_key=ALICE_KEY,
+        api_key=ADMIN_KEY,
         amount=500,
     )
     _assert(new_balance > 0, f"expected positive balance, got {new_balance}")
@@ -147,7 +148,7 @@ def scenario_admin_topup(client: httpx.Client) -> dict[str, Any]:
 def scenario_submit_poll(client: httpx.Client) -> dict[str, Any]:
     """4. Submit task, poll until COMPLETED, verify result."""
     # Ensure credits are available
-    _admin_topup(client, user_id=ALICE_ID, api_key=ALICE_KEY, amount=100)
+    _admin_topup(client, user_id=ALICE_ID, api_key=ADMIN_KEY, amount=100)
 
     status_code, data = _submit_task(client, api_key=ALICE_KEY, x=21, y=21)
     _assert(status_code == 201, f"submit failed: {status_code} {data}")
@@ -160,7 +161,7 @@ def scenario_submit_poll(client: httpx.Client) -> dict[str, Any]:
 
 def scenario_idempotency_replay(client: httpx.Client) -> dict[str, Any]:
     """5. Same idempotency key, same payload → same task_id returned."""
-    _admin_topup(client, user_id=ALICE_ID, api_key=ALICE_KEY, amount=100)
+    _admin_topup(client, user_id=ALICE_ID, api_key=ADMIN_KEY, amount=100)
 
     idem = f"scenario-{uuid4()}"
     code1, data1 = _submit_task(client, api_key=ALICE_KEY, x=2, y=3, idempotency_key=idem)
@@ -177,28 +178,33 @@ def scenario_idempotency_replay(client: httpx.Client) -> dict[str, Any]:
 
 def scenario_insufficient_credits(client: httpx.Client) -> dict[str, Any]:
     """6. Submit with insufficient credits returns 402."""
-    # Bob starts with 500 credits; drain them with submissions
-    # Instead of draining, we test by checking that the API rejects when balance is 0.
-    # Create a new scenario: just ensure bob's balance is very low.
-    # Since TB doesn't have a "set balance" API, we submit enough tasks to drain bob.
-    # Simpler approach: submit with a user who has 0 credits (bob starts with 500,
-    # each task costs 10, so we need 50 tasks). Instead, just verify the 402 path works
-    # by using a known-low-balance scenario.
+    # Read Bob's current balance via topup endpoint by using an idempotent zero delta.
+    # This keeps the scenario deterministic even when TB balances carry over across runs.
+    current_balance = _admin_topup(
+        client,
+        user_id=BOB_ID,
+        api_key=ADMIN_KEY,
+        amount=0,
+    )
+    _assert(current_balance >= 0, f"invalid balance: {current_balance}")
 
-    # Submit many tasks to drain bob's credits (50 tasks × 10 credits each = 500)
+    # Submit enough tasks to exhaust exactly the visible balance if accounting is correct.
+    max_attempts = min(max(current_balance // 10 + 3, 20), 400)
     drained = False
-    for _ in range(60):
+    for _ in range(max_attempts):
         code, data = _submit_task(client, api_key=BOB_KEY, x=1, y=1)
         if code == 402:
             drained = True
             break
-    _assert(drained, "bob never ran out of credits after 60 submissions")
-    return {"status": 402}
+        _assert(code in (200, 201), f"submit failed: {code} {data}")
+
+    _assert(drained, f"bob never ran out of credits after {max_attempts} submissions")
+    return {"status": 402, "attempts": max_attempts}
 
 
 def scenario_cancel_pending(client: httpx.Client) -> dict[str, Any]:
     """7. Cancel a task and verify credits refunded."""
-    _admin_topup(client, user_id=ALICE_ID, api_key=ALICE_KEY, amount=100)
+    _admin_topup(client, user_id=ALICE_ID, api_key=ADMIN_KEY, amount=100)
 
     code, data = _submit_task(client, api_key=ALICE_KEY, x=4, y=4)
     _assert(code == 201, f"submit failed: {code} {data}")
@@ -235,7 +241,7 @@ def scenario_poll_not_found(client: httpx.Client) -> dict[str, Any]:
 
 def scenario_cancel_wrong_user(client: httpx.Client) -> dict[str, Any]:
     """9. Bob cannot cancel Alice's task."""
-    _admin_topup(client, user_id=ALICE_ID, api_key=ALICE_KEY, amount=100)
+    _admin_topup(client, user_id=ALICE_ID, api_key=ADMIN_KEY, amount=100)
 
     code, data = _submit_task(client, api_key=ALICE_KEY, x=7, y=7)
     _assert(code == 201, f"submit failed: {code} {data}")
@@ -251,8 +257,8 @@ def scenario_cancel_wrong_user(client: httpx.Client) -> dict[str, Any]:
 
 def scenario_multi_user_concurrency(client: httpx.Client) -> dict[str, Any]:
     """10. Multiple users submit concurrently — all succeed or get 402."""
-    _admin_topup(client, user_id=ALICE_ID, api_key=ALICE_KEY, amount=500)
-    _admin_topup(client, user_id=BOB_ID, api_key=BOB_KEY, amount=500)
+    _admin_topup(client, user_id=ALICE_ID, api_key=ADMIN_KEY, amount=500)
+    _admin_topup(client, user_id=BOB_ID, api_key=ADMIN_KEY, amount=500)
 
     status_counts: dict[str, dict[int, int]] = {ALICE_KEY: {}, BOB_KEY: {}}
     accepted: dict[str, list[str]] = {ALICE_KEY: [], BOB_KEY: []}

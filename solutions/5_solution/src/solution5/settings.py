@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     restate_ingress_url: str = "http://localhost:8080"
     restate_admin_url: str = "http://localhost:9070"
 
+    # Compute worker
+    compute_worker_url: str = "http://localhost:8001"
+    compute_timeout_seconds: float = 2.0
+    compute_retry_attempts: int = 1
+
     # API
     host: str = "0.0.0.0"
     port: int = 8000

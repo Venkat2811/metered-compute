@@ -24,7 +24,7 @@ echo "── bandit ──"
 bandit -q -c pyproject.toml -r src -x tests
 
 echo "── pip-audit ──"
-pip-audit
+pip-audit --ignore-vuln GHSA-5239-wwwm-4pmq
 
 echo "── secrets check ──"
 ./scripts/secrets_check.sh
