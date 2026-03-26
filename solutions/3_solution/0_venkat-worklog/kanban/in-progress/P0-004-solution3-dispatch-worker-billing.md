@@ -57,3 +57,4 @@ Sub-slices complete so far:
 - [x] Dispatcher process with concrete Redpanda consumer and RabbitMQ channel bridge coverage.
 - [x] Worker running/completion guard seam with TigerBeetle post/void and Redis cache updates.
 - [x] Worker model runtime seam with cold-start, warm-registry, and hot-path unit coverage.
+- [x] Live integration proof for outbox-relay -> Redpanda -> dispatcher -> RabbitMQ cold-queue delivery.

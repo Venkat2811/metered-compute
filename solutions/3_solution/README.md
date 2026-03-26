@@ -46,6 +46,7 @@ Current proof scope is intentionally narrower than the final RFC scope:
 - coverage for the currently implemented API, billing, and worker-runtime seams
 - compose startup + `/health` and `/ready` smoke checks
 - running-stack OAuth + submit/poll/cancel/admin-RBAC integration checks
+- live infra integration for outbox relay -> Redpanda -> dispatcher -> RabbitMQ cold queue
 - bootstrap demo smoke
 - one failure-path script check for readiness timeout
 
