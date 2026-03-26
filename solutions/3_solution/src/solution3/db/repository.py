@@ -225,6 +225,91 @@ async def cancel_task_command(pool: asyncpg.Pool, *, task_id: UUID) -> bool:
         return True
 
 
+async def update_task_running(pool: asyncpg.Pool, *, task_id: UUID) -> bool:
+    async with pool.acquire() as connection, connection.transaction():
+        updated = await connection.fetchrow(
+            """
+            UPDATE cmd.task_commands
+            SET status=$2, updated_at=now()
+            WHERE task_id=$1 AND status=$3
+            RETURNING task_id
+            """,
+            task_id,
+            TaskStatus.RUNNING.value,
+            TaskStatus.PENDING.value,
+        )
+        if updated is None:
+            return False
+        await connection.execute(
+            """
+            INSERT INTO cmd.outbox_events(aggregate_id, event_type, topic, payload)
+            VALUES($1, $2, $3, $4::jsonb)
+            """,
+            task_id,
+            "task.started",
+            "tasks.started",
+            json.dumps(
+                {
+                    "task_id": str(task_id),
+                    "status": TaskStatus.RUNNING.value,
+                }
+            ),
+        )
+        return True
+
+
+async def finalize_task_command(
+    pool: asyncpg.Pool,
+    *,
+    task_id: UUID,
+    user_id: UUID,
+    status: TaskStatus,
+    billing_state: BillingState,
+    cost: int,
+    result: dict[str, Any] | None,
+    error: str | None,
+) -> bool:
+    topic = "tasks.completed" if status == TaskStatus.COMPLETED else "tasks.failed"
+    event_type = "task.completed" if status == TaskStatus.COMPLETED else "task.failed"
+    async with pool.acquire() as connection, connection.transaction():
+        updated = await connection.fetchrow(
+            """
+            UPDATE cmd.task_commands
+            SET status=$2, billing_state=$3, updated_at=now()
+            WHERE task_id=$1 AND status IN ($4, $5)
+            RETURNING task_id
+            """,
+            task_id,
+            status.value,
+            billing_state.value,
+            TaskStatus.PENDING.value,
+            TaskStatus.RUNNING.value,
+        )
+        if updated is None:
+            return False
+        await connection.execute(
+            """
+            INSERT INTO cmd.outbox_events(aggregate_id, event_type, topic, payload)
+            VALUES($1, $2, $3, $4::jsonb)
+            """,
+            task_id,
+            event_type,
+            topic,
+            json.dumps(
+                {
+                    "task_id": str(task_id),
+                    "user_id": str(user_id),
+                    "status": status.value,
+                    "billing_state": billing_state.value,
+                    "cost": cost,
+                    "result": result,
+                    "error": error,
+                }
+            ),
+        )
+        return True
+
+
 async def fetch_unpublished_outbox_events(
     pool: asyncpg.Pool, *, limit: int = 100
 ) -> list[OutboxEventRecord]:
