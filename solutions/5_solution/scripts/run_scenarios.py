@@ -3,7 +3,8 @@
 
 Runs production-style scenario checks against a live docker compose stack.
 Each scenario verifies a specific behaviour: auth, billing, submit/poll,
-idempotency, cancellation, multi-user concurrency, edge cases.
+idempotency, cancellation, multi-user concurrency, scope enforcement,
+and edge cases.
 """
 
 from __future__ import annotations
@@ -315,6 +316,27 @@ def scenario_multi_user_concurrency(client: httpx.Client) -> dict[str, Any]:
     }
 
 
+def scenario_unsupported_surface(client: httpx.Client) -> dict[str, Any]:
+    """13. Unsupported surfaces are rejected clearly."""
+    response = client.post(
+        "/v1/task",
+        json={"x": 1, "y": 2, "model_class": "small"},
+    )
+    _assert(response.status_code == 422, f"expected 422, got {response.status_code}")
+
+    batch = client.post("/v1/task/batch", json={"tasks": [{"x": 1, "y": 2}]})
+    _assert(batch.status_code == 404, f"expected 404, got {batch.status_code}")
+
+    compat = client.post("/task", json={"x": 1, "y": 2})
+    _assert(compat.status_code in {404, 405}, f"expected compat path to be unsupported: {compat.status_code}")
+
+    return {
+        "submit_payload_rejected": response.status_code,
+        "batch_status": batch.status_code,
+        "compat_status": compat.status_code,
+    }
+
+
 def scenario_metrics_available(client: httpx.Client) -> dict[str, Any]:
     """11. Prometheus /metrics endpoint returns valid metrics."""
     response = client.get("/metrics")
@@ -398,6 +420,7 @@ def main() -> int:
             ("poll_not_found", lambda: scenario_poll_not_found(client)),
             ("cancel_wrong_user", lambda: scenario_cancel_wrong_user(client)),
             ("multi_user_concurrency", lambda: scenario_multi_user_concurrency(client)),
+            ("unsupported_surface", lambda: scenario_unsupported_surface(client)),
             ("metrics_available", lambda: scenario_metrics_available(client)),
             ("demo_script", lambda: scenario_demo_script(base_url=args.base_url)),
         ]

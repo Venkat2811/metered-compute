@@ -34,7 +34,7 @@ source .venv/bin/activate
 bash scripts/demo.sh
 ```
 
-Optional full proof command (quality + coverage + clean compose rebuild + integration + 12 scenarios + log capture):
+Optional full proof command (quality + coverage + clean compose rebuild + integration + 13 scenarios + log capture):
 
 ```bash
 make prove
@@ -149,7 +149,7 @@ curl -sS -X POST http://localhost:8000/v1/task \
 
 Expected: `402` with `Insufficient credits`.
 
-### Scenario harness (12 scenarios, includes multi-user concurrency burst)
+### Scenario harness (13 scenarios, includes scope gates)
 
 ```bash
 source .venv/bin/activate
@@ -167,6 +167,22 @@ This exercises:
 - concurrent submits from multiple users
 - Prometheus metrics availability
 - demo script execution
+- unsupported surface gate (`/v1/task` rejects unknown fields, `/v1/task/batch` is intentionally absent)
+
+### Scope and compatibility contract
+
+Solution 5 intentionally supports a narrow compatibility slice:
+
+- API-key authentication only.
+- No JWT/OAuth endpoint layer.
+- No batch submit endpoint.
+- No tier/model-class parameters.
+- No `/task` legacy path.
+- No webhook callbacks.
+
+Unsupported surface is explicit:
+- unknown request fields on `/v1/task` → `422`
+- unsupported routes such as `/v1/task/batch` → `404`
 
 ## Architecture
 
@@ -306,13 +322,13 @@ Unit tests (39 tests):
 make test-unit
 ```
 
-Integration tests (4 tests, requires compose stack):
+Integration tests (now 7 tests, requires compose stack):
 
 ```bash
 make test-integration
 ```
 
-Scenarios (12 scenarios, requires compose stack):
+Scenarios (13 scenarios, requires compose stack):
 
 ```bash
 make scenarios

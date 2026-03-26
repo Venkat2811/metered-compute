@@ -42,6 +42,8 @@ class SubmitRequest(BaseModel):
     y: int
     idempotency_key: str | None = None
 
+    model_config = {"extra": "forbid"}
+
 
 class SubmitResponse(BaseModel):
     task_id: str

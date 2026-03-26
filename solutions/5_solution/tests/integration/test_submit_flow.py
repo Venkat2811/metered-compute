@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import time
+from uuid import uuid4
 
 import httpx
 import pytest
@@ -83,3 +84,33 @@ class TestSubmitFlow:
         )
         assert r.status_code == 200
         assert r.json()["new_balance"] > 0
+
+    def test_submit_rejects_unknown_payload_fields(self, client: httpx.Client) -> None:
+        r = client.post(
+            "/v1/task",
+            json={
+                "x": 1,
+                "y": 2,
+                "tier": "pro",
+                "model_class": "large",
+            },
+        )
+        assert r.status_code == 422
+
+    def test_unsupported_batch_endpoint_returns_404(self, client: httpx.Client) -> None:
+        r = client.post("/v1/task/batch", json={"items": [{"x": 1, "y": 2}]})
+        assert r.status_code == 404
+
+    def test_compat_path_not_supported(self, client: httpx.Client) -> None:
+        # Sol 5 intentionally exposes only /v1 paths.
+        r = client.post("/task", json={"x": 1, "y": 2})
+        assert r.status_code in {404, 405}
+
+    def test_random_idempotent_payload_extra_headers_are_ignored_if_unrecognized(self, client: httpx.Client) -> None:
+        key = f"sol5-scope-{uuid4()}"
+        r = client.post(
+            "/v1/task",
+            headers={"X-Idempotency-Key": key, "X-Debug-Trace": "ignore-me"},
+            json={"x": 2, "y": 3},
+        )
+        assert r.status_code in {200, 201}
