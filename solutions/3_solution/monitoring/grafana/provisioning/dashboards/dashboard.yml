@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: solution3-bootstrap
+    orgId: 1
+    folder: Solution3
+    type: file
+    disableDeletion: true
+    updateIntervalSeconds: 10
+    options:
+      path: /var/lib/grafana/dashboards

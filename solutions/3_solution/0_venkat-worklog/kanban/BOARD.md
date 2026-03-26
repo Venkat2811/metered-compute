@@ -18,9 +18,9 @@ Implementation starts on branch `solution3-5-buildout`.
 
 Current board shape is intentional:
 
-- one scoped epic card in `todo/`
-- no parallel P-cards until the platform skeleton exists
-- sequencing and proof requirements live inside the epic checklist
+- bootstrap is complete and verified
+- next work starts at `P0-002` on top of a proven runtime skeleton
+- sequencing and proof requirements live inside each epic checklist
 
 ## Baseline Requirements Snapshot
 
@@ -101,7 +101,7 @@ Priority: `P0` (blocker), `P1` (must-have), `P2` (nice-to-have)
 
 ## Planned Tasks
 
-- `todo/P0-001-solution3-repo-bootstrap.md`
+- `done/P0-001-solution3-repo-bootstrap.md`
 - `todo/P0-002-solution3-core-contracts-and-migrations.md`
 - `todo/P0-003-solution3-auth-api-submit.md`
 - `todo/P0-004-solution3-dispatch-worker-billing.md`

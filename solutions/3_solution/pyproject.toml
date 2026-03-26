@@ -1,0 +1,108 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mc-solution3"
+version = "0.1.0"
+description = "Solution 3 financial core platform for metered-compute API"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "fastapi==0.129.0",
+  "uvicorn[standard]==0.40.0",
+  "redis==6.4.0",
+  "asyncpg==0.31.0",
+  "pydantic==2.12.5",
+  "pydantic-settings==2.13.0",
+  "structlog==25.5.0",
+  "prometheus-client==0.24.1",
+  "orjson==3.11.7",
+  "httpx==0.28.1",
+  "PyJWT==2.12.1",
+  "cryptography==46.0.5",
+  "uuid6==2025.0.1",
+  "pika==1.3.2",
+  "opentelemetry-api==1.37.0",
+  "opentelemetry-sdk==1.37.0",
+  "opentelemetry-exporter-otlp-proto-http==1.37.0",
+]
+
+[dependency-groups]
+dev = [
+  "fakeredis==2.33.0",
+  "mypy==1.19.1",
+  "pytest==9.0.2",
+  "pytest-asyncio==1.3.0",
+  "pytest-cov==7.0.0",
+  "bandit==1.8.6",
+  "pip-audit==2.9.0",
+  "detect-secrets==1.5.0",
+  "ruff==0.15.1",
+  "radon==6.0.1",
+  "types-redis==4.6.0.20241004",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = ["worklog"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/solution3/app.py" = ["B008"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests_bootstrap"]
+pythonpath = ["src", "."]
+markers = [
+  "integration: integration tests that require running compose services",
+  "e2e: end-to-end tests that execute demo artifacts",
+  "fault: failure-mode and degradation-path tests",
+]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+pretty = true
+show_error_codes = true
+files = ["src", "tests_bootstrap"]
+warn_unreachable = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["asyncpg", "structlog"]
+ignore_missing_imports = true
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+solution3 = ["db/migrations/*.sql"]
+
+[tool.coverage.run]
+branch = true
+source = ["src/solution3"]
+
+[tool.coverage.report]
+skip_covered = false
+show_missing = true
+precision = 1
+
+[tool.bandit]
+exclude_dirs = ["tests", "worklog"]
+# B104 = hardcoded_bind_all_interfaces. Compose-deployed services intentionally bind
+# to 0.0.0.0 inside the container; external exposure is controlled by compose/network.
+skips = ["B104"]

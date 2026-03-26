@@ -1,0 +1,360 @@
+name: mc-solution3
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile
+    env_file:
+      - .env.dev.defaults
+    environment:
+      OTEL_ENABLED: ${OTEL_ENABLED:-false}
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://otel-collector:4318/v1/traces}
+      OTEL_SERVICE_NAMESPACE: ${OTEL_SERVICE_NAMESPACE:-metered-compute}
+      OTEL_EXPORT_TIMEOUT_SECONDS: ${OTEL_EXPORT_TIMEOUT_SECONDS:-3.0}
+      OTEL_SAMPLER_RATIO: ${OTEL_SAMPLER_RATIO:-1.0}
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      hydra:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+      tigerbeetle:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/worker/Dockerfile
+    env_file:
+      - .env.dev.defaults
+    environment:
+      OTEL_ENABLED: ${OTEL_ENABLED:-false}
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://otel-collector:4318/v1/traces}
+      OTEL_SERVICE_NAMESPACE: ${OTEL_SERVICE_NAMESPACE:-metered-compute}
+      OTEL_EXPORT_TIMEOUT_SECONDS: ${OTEL_EXPORT_TIMEOUT_SECONDS:-3.0}
+      OTEL_SAMPLER_RATIO: ${OTEL_SAMPLER_RATIO:-1.0}
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    ports:
+      - "9100:9100"
+    restart: unless-stopped
+
+  dispatcher:
+    build:
+      context: .
+      dockerfile: docker/dispatcher/Dockerfile
+    env_file:
+      - .env.dev.defaults
+    environment:
+      OTEL_ENABLED: ${OTEL_ENABLED:-false}
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://otel-collector:4318/v1/traces}
+      OTEL_SERVICE_NAMESPACE: ${OTEL_SERVICE_NAMESPACE:-metered-compute}
+      OTEL_EXPORT_TIMEOUT_SECONDS: ${OTEL_EXPORT_TIMEOUT_SECONDS:-3.0}
+      OTEL_SAMPLER_RATIO: ${OTEL_SAMPLER_RATIO:-1.0}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  outbox-relay:
+    build:
+      context: .
+      dockerfile: docker/outbox_relay/Dockerfile
+    env_file:
+      - .env.dev.defaults
+    environment:
+      OTEL_ENABLED: ${OTEL_ENABLED:-false}
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://otel-collector:4318/v1/traces}
+      OTEL_SERVICE_NAMESPACE: ${OTEL_SERVICE_NAMESPACE:-metered-compute}
+      OTEL_EXPORT_TIMEOUT_SECONDS: ${OTEL_EXPORT_TIMEOUT_SECONDS:-3.0}
+      OTEL_SAMPLER_RATIO: ${OTEL_SAMPLER_RATIO:-1.0}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  projector:
+    build:
+      context: .
+      dockerfile: docker/projector/Dockerfile
+    env_file:
+      - .env.dev.defaults
+    environment:
+      OTEL_ENABLED: ${OTEL_ENABLED:-false}
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://otel-collector:4318/v1/traces}
+      OTEL_SERVICE_NAMESPACE: ${OTEL_SERVICE_NAMESPACE:-metered-compute}
+      OTEL_EXPORT_TIMEOUT_SECONDS: ${OTEL_EXPORT_TIMEOUT_SECONDS:-3.0}
+      OTEL_SAMPLER_RATIO: ${OTEL_SAMPLER_RATIO:-1.0}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  reconciler:
+    build:
+      context: .
+      dockerfile: docker/reconciler/Dockerfile
+    env_file:
+      - .env.dev.defaults
+    environment:
+      OTEL_ENABLED: ${OTEL_ENABLED:-false}
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://otel-collector:4318/v1/traces}
+      OTEL_SERVICE_NAMESPACE: ${OTEL_SERVICE_NAMESPACE:-metered-compute}
+      OTEL_EXPORT_TIMEOUT_SECONDS: ${OTEL_EXPORT_TIMEOUT_SECONDS:-3.0}
+      OTEL_SAMPLER_RATIO: ${OTEL_SAMPLER_RATIO:-1.0}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  watchdog:
+    build:
+      context: .
+      dockerfile: docker/watchdog/Dockerfile
+    env_file:
+      - .env.dev.defaults
+    environment:
+      OTEL_ENABLED: ${OTEL_ENABLED:-false}
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://otel-collector:4318/v1/traces}
+      OTEL_SERVICE_NAMESPACE: ${OTEL_SERVICE_NAMESPACE:-metered-compute}
+      OTEL_EXPORT_TIMEOUT_SECONDS: ${OTEL_EXPORT_TIMEOUT_SECONDS:-3.0}
+      OTEL_SAMPLER_RATIO: ${OTEL_SAMPLER_RATIO:-1.0}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  webhook-worker:
+    build:
+      context: .
+      dockerfile: docker/webhook_worker/Dockerfile
+    env_file:
+      - .env.dev.defaults
+    environment:
+      OTEL_ENABLED: ${OTEL_ENABLED:-false}
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://otel-collector:4318/v1/traces}
+      OTEL_SERVICE_NAMESPACE: ${OTEL_SERVICE_NAMESPACE:-metered-compute}
+      OTEL_EXPORT_TIMEOUT_SECONDS: ${OTEL_EXPORT_TIMEOUT_SECONDS:-3.0}
+      OTEL_SAMPLER_RATIO: ${OTEL_SAMPLER_RATIO:-1.0}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  hydra-migrate:
+    image: oryd/hydra:v25.4.0
+    env_file:
+      - .env.dev.defaults
+    command: ["migrate", "sql", "up", "-e", "--yes"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  hydra:
+    image: oryd/hydra:v25.4.0
+    env_file:
+      - .env.dev.defaults
+    command: ["serve", "all", "--dev"]
+    depends_on:
+      hydra-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "hydra", "list", "oauth2-clients", "-e", "http://localhost:4445", "--format", "json"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    ports:
+      - "4444:4444"
+      - "4445:4445"
+    restart: unless-stopped
+
+  hydra-client-init:
+    image: oryd/hydra:v25.4.0
+    env_file:
+      - .env.dev.defaults
+    entrypoint: ["sh", "/bootstrap-clients.sh"]
+    volumes:
+      - ./docker/hydra/bootstrap-clients.sh:/bootstrap-clients.sh:ro
+    depends_on:
+      hydra:
+        condition: service_healthy
+    restart: "no"
+
+  redis:
+    image: redis:8.2.4-alpine3.22
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:4.1-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    restart: unless-stopped
+
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.3.8
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp=1
+      - --memory=1G
+      - --reserve-memory=0M
+      - --node-id=0
+      - --check=false
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092,OUTSIDE://0.0.0.0:19092
+      - --advertise-kafka-addr=PLAINTEXT://redpanda:9092,OUTSIDE://localhost:19092
+      - --pandaproxy-addr=PLAINTEXT://0.0.0.0:8082
+      - --advertise-pandaproxy-addr=PLAINTEXT://redpanda:8082
+    ports:
+      - "9092:9092"
+      - "19092:19092"
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster info -X brokers=localhost:9092 >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  tb-init:
+    image: ghcr.io/tigerbeetle/tigerbeetle:0.16.68
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        if [ ! -f /data/0_0.tigerbeetle ]; then
+          /tigerbeetle format --cluster=0 --replica=0 --replica-count=1 /data/0_0.tigerbeetle
+        else
+          echo "TigerBeetle data file already exists; skipping format"
+        fi
+    volumes:
+      - tbdata:/data
+
+  tigerbeetle:
+    image: ghcr.io/tigerbeetle/tigerbeetle:0.16.68
+    command: ["start", "--addresses=0.0.0.0:3000", "/data/0_0.tigerbeetle"]
+    cap_add:
+      - IPC_LOCK
+    volumes:
+      - tbdata:/data
+    depends_on:
+      tb-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "echo ok"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  postgres:
+    build:
+      context: .
+      dockerfile: docker/postgres/Dockerfile
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.5.1
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - api
+      - worker
+      - outbox-relay
+      - projector
+      - watchdog
+      - webhook-worker
+      - hydra
+      - rabbitmq
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:12.3.3
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  tempo:
+    image: grafana/tempo:2.9.0
+    profiles: ["tracing"]
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    volumes:
+      - ./monitoring/tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
+    ports:
+      - "3200:3200"
+      - "4317:4317"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  rabbitmq_data:
+  tbdata:

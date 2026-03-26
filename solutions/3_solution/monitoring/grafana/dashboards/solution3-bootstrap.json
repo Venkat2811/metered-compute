@@ -1,0 +1,44 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": false,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "content": "Solution 3 is currently in bootstrap mode. Runtime metrics, alert rules, and business dashboards land in later kanban cards.",
+        "mode": "markdown"
+      },
+      "title": "Bootstrap Status",
+      "type": "text"
+    }
+  ],
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": [
+    "solution3",
+    "bootstrap"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Solution 3 Bootstrap",
+  "version": 1
+}

@@ -6,11 +6,11 @@ Create a runnable `3_solution` scaffold from `2_solution` conventions, then enfo
 
 Acceptance criteria:
 
-- [ ] Working `make help`, `make venv`, and `make sync` entrypoints.
-- [ ] Reviewer-first README with setup/demo/proof sections.
-- [ ] `docker compose up --build -d` starts all required services with health checks.
-- [ ] Base package/import structure exists under `src/solution3/`.
-- [ ] Local developer safety defaults in `.env.dev.defaults`.
+- [x] Working `make help`, `make venv`, and `make sync` entrypoints.
+- [x] Reviewer-first README with setup/demo/proof sections.
+- [x] `docker compose up --build -d` starts all required services with health checks.
+- [x] Base package/import structure exists under `src/solution3/`.
+- [x] Local developer safety defaults in `.env.dev.defaults`.
 
 TDD order:
 
@@ -22,26 +22,32 @@ TDD order:
 
 Checklist:
 
-- [ ] Copy/adapt minimal non-domain scaffold from `2_solution`:
+- [x] Copy/adapt minimal non-domain scaffold from `2_solution`:
   - `docker/`, `monitoring/`, `scripts/`, `utils/`, `Makefile`, `pyproject.toml`, `.env.dev.defaults`, `README.md`.
-- [ ] Add `worklog/evidence/` paths and placeholder capture conventions used in other solutions.
-- [ ] Create package shell in `src/solution3/`:
+- [x] Add `worklog/evidence/` paths and placeholder capture conventions used in other solutions.
+- [x] Create package shell in `src/solution3/`:
   - `__init__.py`, `core/`, `api/`, `services/`, `workers/`, `db/`, `models/`, `utils/`.
-- [ ] Add `src/solution3/main.py` factory entrypoint with app factory stub.
-- [ ] Create foundational Dockerfiles:
+- [x] Add `src/solution3/main.py` factory entrypoint with app factory stub.
+- [x] Create foundational Dockerfiles:
   - `docker/api/Dockerfile`
   - `docker/reconciler/Dockerfile`
   - `docker/dispatcher/Dockerfile`
   - `docker/projector/Dockerfile`
   - `docker/worker/Dockerfile`
   - `docker/webhook-worker/Dockerfile`
-- [ ] Add service definitions in `compose.yaml`:
+- [x] Add service definitions in `compose.yaml`:
   - postgres, redis, redpanda, tigerbeetle, hydra, rabbitmq, api, reconciler, dispatcher, projector, worker pool, webhook-worker, grafana, prometheus.
-- [ ] Add minimal readiness probes + startup gating script placeholders.
-- [ ] Add `tests/conftest.py` scaffold for shared fakes/settings.
-- [ ] Ensure `make prove` command path exists, even if it currently reports blocked scope.
+- [x] Add minimal readiness probes + startup gating script placeholders.
+- [x] Add `tests/conftest.py` scaffold for shared fakes/settings.
+- [x] Ensure `make prove` command path exists, even if it currently reports blocked scope.
 
 Completion criteria:
 
-- [ ] `make venv` and `make sync` are runnable from clean checkout.
-- [ ] `make quality` and `make coverage` execute on the scaffolded code with no unrelated failures.
+- [x] `make venv` and `make sync` are runnable from clean checkout.
+- [x] `make quality` and `make coverage` execute on the scaffolded code with no unrelated failures.
+
+Verification notes:
+
+- `make help` passed on 2026-03-26.
+- `./scripts/full_stack_check.sh` passed on 2026-03-26.
+- Full-check artifact: `worklog/evidence/full-check-20260326T203812Z`
