@@ -123,3 +123,13 @@ SEED_TEST_USER2_CREDITS: Final[int] = 250
 SEED_ADMIN_NAME: Final[str] = "admin"
 SEED_ALICE_NAME: Final[str] = "alice"
 SEED_BOB_NAME: Final[str] = "bob"
+
+MODEL_COST_MULTIPLIER: Final[dict[ModelClass, int]] = {
+    ModelClass.SMALL: 1,
+    ModelClass.MEDIUM: 2,
+    ModelClass.LARGE: 5,
+}
+
+
+def task_cost_for_model(*, base_cost: int, model_class: ModelClass) -> int:
+    return max(1, base_cost * MODEL_COST_MULTIPLIER[model_class])

@@ -4,12 +4,14 @@ Objective:
 
 Implement OAuth-backed identity, command API, and guarded task command state transitions.
 
+Status: done on 2026-03-26 after unit, integration, and quality verification.
+
 Acceptance criteria:
 
-- [ ] `POST /v1/task` accepts idempotent submit and writes a command row + outbox row atomically.
-- [ ] `GET /v1/poll` returns hot-path data.
-- [ ] `POST /v1/task/{id}/cancel` follows guarded state transition rules.
-- [ ] `POST /v1/admin/credits` requires admin role.
+- [x] `POST /v1/task` accepts idempotent submit and writes a command row + outbox row atomically.
+- [x] `GET /v1/poll` returns hot-path data.
+- [x] `POST /v1/task/{id}/cancel` follows guarded state transition rules.
+- [x] `POST /v1/admin/credits` requires admin role.
 
 TDD order:
 
@@ -21,26 +23,36 @@ TDD order:
 
 Checklist:
 
-- [ ] Auth:
+- [x] Auth:
   - add `src/solution3/api/auth_routes.py` and auth service with Hydra/JWT verification path.
   - verify roles and scopes for admin operations.
-- [ ] Domain/services:
+- [x] Domain/services:
   - add `src/solution3/services/auth.py` for API key hash lookup + JWT mapping.
-- [ ] Submit API:
+- [x] Submit API:
   - add `src/solution3/api/task_write_routes.py`.
   - parse idempotency key, payload, model class, requested mode.
   - write `task_commands` row using repo write helper.
-- [ ] Poll API:
+- [x] Poll API:
   - add `src/solution3/api/task_read_routes.py` with Redis/query-model fallback.
-- [ ] Cancel/API admin:
+- [x] Cancel/API admin:
   - add cancel contract with state guard semantics.
   - add admin credits endpoint with explicit admin scope.
-- [ ] Contracts:
+- [x] Contracts:
   - add/adjust Pydantic models in `src/solution3/models/schemas.py`.
-- [ ] Route assembly in `src/solution3/core/contracts.py` and `src/solution3/app.py`.
+- [x] Route assembly in `src/solution3/app.py`.
 
 Completion criteria:
 
-- [ ] Submit path writes command row + outbox row; no direct worker enqueue.
-- [ ] Cancel path cannot regress terminal states due to missing guard checks.
-- [ ] Unauthorized ownership/scopes consistently return RFC-conformant envelopes.
+- [x] Submit path writes command row + outbox row; no direct worker enqueue.
+- [x] Cancel path cannot regress terminal states due to missing guard checks.
+- [x] Unauthorized ownership/scopes consistently return RFC-conformant envelopes.
+
+Verification:
+
+- `pytest tests_bootstrap/unit`
+- `pytest tests_bootstrap/integration -m integration`
+- `make quality`
+
+Notes:
+
+- `POST /v1/admin/credits` is intentionally RBAC-only in this slice. The success path remains deferred to `P0-004`, where TigerBeetle becomes the billing source of truth.

@@ -32,7 +32,7 @@ source .venv/bin/activate
 python ./utils/demo.py
 ```
 
-Optional full proof command for the current bootstrap scope:
+Optional full proof command for the current scoped implementation:
 
 ```bash
 make prove
@@ -40,36 +40,40 @@ make prove
 make full-check
 ```
 
-Current proof scope is intentionally narrow:
+Current proof scope is intentionally narrower than the final RFC scope:
 
 - quality gates for `src/solution3` and `tests_bootstrap`
-- coverage for bootstrap code
+- coverage for the currently implemented API/bootstrap code
 - compose startup + `/health` and `/ready` smoke checks
+- running-stack OAuth + submit/poll/cancel/admin-RBAC integration checks
 - bootstrap demo smoke
 - one failure-path script check for readiness timeout
 
 ## Current Status
 
-This directory is in `P0-001` bootstrap mode.
+This directory has completed `P0-003`.
 
 What is already real:
 
 - standalone `solution3` Python package under `src/solution3`
 - reviewer-first Docker Compose stack with Postgres, Redis, RabbitMQ, Hydra, Redpanda, TigerBeetle, API, and worker-shaped processes
-- minimal FastAPI app with `/health` and `/ready`
+- FastAPI app with `/health`, `/ready`, `/v1/oauth/token`, `/v1/task`, `/v1/poll`, `/v1/task/{id}/cancel`, and `/v1/admin/credits`
 - enum-driven SQL migrations plus a host-side `make migrate` / `scripts/migrate.sh` path
+- command-store repository helpers for `task_commands`, `outbox_events`, and guarded cancel updates
+- Hydra-backed JWT verification and scope-aware route protection
+- Redis hot-path task cache for poll reads
 - bootstrap worker entrypoints for `dispatcher`, `projector`, `reconciler`, `worker`, `watchdog`, and `webhook-worker`
-- isolated bootstrap test suite in `tests_bootstrap/`
+- isolated test suite in `tests_bootstrap/` covering unit, integration, e2e, and fault slices for the implemented scope
 
 What is not implemented yet:
 
-- submit, poll, cancel, admin credits APIs
 - TigerBeetle billing integration
 - Redpanda outbox, dispatcher, projector, and rebuild flows
-- CQRS query model
+- full CQRS query projection pipeline
+- successful admin top-up path
 - scenario harness and load profile
 
-Those land in `P0-002` onward. The kanban reflects the real ship order.
+Those land in `P0-004` onward. The kanban reflects the real ship order.
 
 ## Lay Of The Land
 
@@ -99,14 +103,28 @@ Source package shape:
 
 ```text
 src/solution3
+|-- api
+|   |-- admin_routes.py
+|   |-- auth_routes.py
+|   |-- error_responses.py
+|   |-- paths.py
+|   |-- task_read_routes.py
+|   `-- task_write_routes.py
 |-- app.py
 |-- constants.py
 |-- core
 |   |-- runtime.py
 |   `-- settings.py
+|-- db
+|   |-- migrate.py
+|   |-- migrations
+|   `-- repository.py
 |-- main.py
 |-- models
+|   |-- domain.py
 |   `-- schemas.py
+|-- services
+|   `-- auth.py
 |-- utils
 |   `-- logging.py
 `-- workers
@@ -127,6 +145,8 @@ make help
 make quality
 make coverage
 make migrate
+pytest tests_bootstrap/unit
+pytest tests_bootstrap/integration -m integration
 make up
 make wait-ready
 make demo

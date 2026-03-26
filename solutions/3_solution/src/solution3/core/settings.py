@@ -115,6 +115,7 @@ class AppSettings(BaseSettings):
     hydra_admin_url: str = "http://hydra:4445"
     hydra_issuer: str = "http://hydra:4444/"
     hydra_jwks_url: str = "http://hydra:4444/.well-known/jwks.json"
+    oauth_request_timeout_seconds: float = 3.0
 
     log_leak_sensitive_values: bool = False
 
