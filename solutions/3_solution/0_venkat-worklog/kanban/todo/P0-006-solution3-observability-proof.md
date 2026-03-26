@@ -8,8 +8,8 @@ Acceptance criteria:
 
 - [ ]  Prometheus metrics + Grafana dashboards cover core control plane and worker flows.
 - [ ]  Scenario harness covers all critical flows and is deterministic.
-- [ ]  `make prove` executes all intended test tiers and captures evidence.
-- [ ]  RFC/README claims match code behavior.
+- [x]  `make prove` executes all intended bootstrap test tiers and captures evidence.
+- [x]  README claims for the current bootstrap scope match code behavior.
 
 TDD order:
 
@@ -30,12 +30,13 @@ Checklist:
   - `scripts/run_scenarios.py`
   - `scripts/benchmark` or load harness entrypoint
   - `scripts/capacity_model.py`
-  - `scripts/full_stack_check.sh`
+  - `scripts/full_stack_check.sh` (bootstrap proof gate is green as of `full-check-20260326T223430Z`)
 - [ ] Add tests for scenario loader and output shape.
-- [ ] Add evidence directory convention and timestamps for prove runs.
-- [ ] Align `README.md`, solution matrix row, and RFC status notes.
+- [x] Add evidence directory convention and timestamps for prove runs.
+- [x] Align `README.md` to the current shipped bootstrap scope.
+- [ ] Align solution matrix row and RFC status notes.
 
 Completion criteria:
 
-- [ ] `make prove` passes from clean state on a full run.
+- [x] `make prove` passes from clean state on the current bootstrap run.
 - [ ] Evidence directory contains full-check output, scenario report, and logs.

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 from uuid import UUID
 
 import asyncpg
@@ -364,6 +364,85 @@ def test_poll_returns_not_found_for_foreign_task(
 
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "NOT_FOUND"
+
+
+def test_poll_falls_back_to_query_view_when_cache_misses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from solution3.api import task_read_routes
+
+    task_id = uuid7()
+    query_view = _query_view(task_id=task_id, user_id=_auth_user().user_id)
+
+    async def fake_get_query_view(*_: object, **__: object) -> TaskQueryView:
+        return query_view
+
+    async def fake_get_command(*_: object, **__: object) -> None:
+        raise AssertionError("command lookup should not run when query view exists")
+
+    monkeypatch.setattr(task_read_routes, "get_task_query_view", fake_get_query_view)
+    monkeypatch.setattr(task_read_routes, "get_task_command", fake_get_command)
+
+    client, _, _ = _client(monkeypatch, current_user=_auth_user())
+    with client:
+        response = client.get(
+            "/v1/poll",
+            params={"task_id": str(task_id)},
+            headers={"Authorization": "Bearer jwt.header.signature"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "RUNNING"
+
+
+def test_poll_falls_back_to_command_store_when_projection_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from solution3.api import task_read_routes
+
+    task_id = uuid7()
+    command = _task_command(
+        task_id=task_id,
+        user_id=_auth_user().user_id,
+        status=TaskStatus.PENDING,
+        billing_state=BillingState.RESERVED,
+    )
+
+    async def fake_get_query_view(*_: object, **__: object) -> None:
+        return None
+
+    async def fake_get_command(*_: object, **__: object) -> TaskCommand:
+        return command
+
+    monkeypatch.setattr(task_read_routes, "get_task_query_view", fake_get_query_view)
+    monkeypatch.setattr(task_read_routes, "get_task_command", fake_get_command)
+
+    client, _, _ = _client(monkeypatch, current_user=_auth_user())
+    with client:
+        response = client.get(
+            "/v1/poll",
+            params={"task_id": str(task_id)},
+            headers={"Authorization": "Bearer jwt.header.signature"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "PENDING"
+
+
+def test_poll_returns_service_degraded_when_cache_misses_and_db_is_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, _, _ = _client(monkeypatch, current_user=_auth_user())
+    with client:
+        cast(Any, client.app).state.runtime.db_pool = None
+        response = client.get(
+            "/v1/poll",
+            params={"task_id": str(uuid7())},
+            headers={"Authorization": "Bearer jwt.header.signature"},
+        )
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "SERVICE_DEGRADED"
 
 
 def test_cancel_conflict_on_terminal_task(

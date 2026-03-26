@@ -264,6 +264,91 @@ def test_build_redpanda_consumer_uses_expected_group_and_topic(
     assert typed_consumer.subscribed_topics == ["tasks.requested"]
 
 
+def test_build_rabbitmq_channel_configures_connection_parameters(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    class FakeChannelResult(FakeChannel):
+        pass
+
+    class FakeConnectionResult(FakeConnection):
+        def __init__(self) -> None:
+            super().__init__()
+            self.channel_result = FakeChannelResult()
+
+        def channel(self) -> FakeChannel:
+            return self.channel_result
+
+    class FakeURLParameters:
+        def __init__(self, url: str) -> None:
+            captured["url"] = url
+            self.heartbeat = None
+            self.blocked_connection_timeout = None
+            self.socket_timeout = None
+
+    def fake_blocking_connection(*, parameters: object) -> FakeConnectionResult:
+        captured["parameters"] = parameters
+        return FakeConnectionResult()
+
+    monkeypatch.setattr("solution3.workers.dispatcher.pika.URLParameters", FakeURLParameters)
+    monkeypatch.setattr(
+        "solution3.workers.dispatcher.pika.BlockingConnection",
+        fake_blocking_connection,
+    )
+
+    connection, channel = dispatcher.build_rabbitmq_channel(
+        SimpleNamespace(rabbitmq_url="amqp://guest:guest@rabbitmq:5672/")
+    )
+
+    parameters = cast(FakeURLParameters, captured["parameters"])
+    assert captured["url"] == "amqp://guest:guest@rabbitmq:5672/"
+    assert parameters.heartbeat == 60
+    assert parameters.blocked_connection_timeout == 3.0
+    assert parameters.socket_timeout == 3.0
+    assert isinstance(connection, FakeConnectionResult)
+    assert isinstance(channel, FakeChannelResult)
+
+
+def test_open_and_close_dispatch_resources_use_builder_contracts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    consumer = FakeConsumer()
+    connection = FakeConnection()
+    channel = FakeChannel()
+    declared_channels: list[FakeChannel] = []
+
+    monkeypatch.setattr(dispatcher, "build_redpanda_consumer", lambda _settings: consumer)
+    monkeypatch.setattr(
+        dispatcher,
+        "build_rabbitmq_channel",
+        lambda _settings: (
+            cast(dispatcher.RabbitMQConnection, connection),
+            cast(dispatcher.RabbitMQChannel, channel),
+        ),
+    )
+    monkeypatch.setattr(
+        dispatcher,
+        "declare_dispatch_topology",
+        lambda declared: declared_channels.append(cast(FakeChannel, declared)),
+    )
+
+    opened_consumer, opened_connection, opened_channel = dispatcher.open_dispatch_resources(
+        SimpleNamespace()
+    )
+    dispatcher.close_dispatch_resources(
+        consumer=consumer,
+        connection=cast(dispatcher.RabbitMQConnection, connection),
+    )
+
+    assert opened_consumer is consumer
+    assert cast(object, opened_connection) is connection
+    assert opened_channel is channel
+    assert declared_channels == [channel]
+    assert consumer.closed is True
+    assert connection.closed is True
+
+
 def test_main_configures_logging_and_runs_dispatch_loop(monkeypatch: pytest.MonkeyPatch) -> None:
     configure_calls: list[bool] = []
     main_loop_calls: list[tuple[float, int, int]] = []

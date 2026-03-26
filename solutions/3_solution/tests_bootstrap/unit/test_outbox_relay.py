@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Mapping
 from contextlib import suppress
 from datetime import UTC, datetime
@@ -277,6 +278,11 @@ def test_build_redpanda_producer_uses_solution_settings(monkeypatch: pytest.Monk
     assert captured["client_id"] == "solution3-outbox-relay"
 
 
+def test_build_redpanda_producer_rejects_missing_bootstrap_servers() -> None:
+    with pytest.raises(RuntimeError, match="redpanda bootstrap servers are not configured"):
+        outbox_relay.build_redpanda_producer(SimpleNamespace(redpanda_bootstrap_servers=" , "))
+
+
 def test_main_configures_logging_and_runs_async_main(monkeypatch: pytest.MonkeyPatch) -> None:
     configure_calls: list[bool] = []
     async_calls: list[tuple[float, int]] = []
@@ -305,3 +311,127 @@ def test_main_configures_logging_and_runs_async_main(monkeypatch: pytest.MonkeyP
 
     assert configure_calls == [False]
     assert async_calls == [(2.5, 25)]
+
+
+@pytest.mark.asyncio
+async def test_main_async_publishes_batches_and_closes_resources(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stop_event: asyncio.Event | None = None
+    closed = {"db": 0, "producer": 0}
+    relay_calls: list[int] = []
+
+    class FakePool:
+        async def close(self) -> None:
+            closed["db"] += 1
+
+    class CloseTrackingProducer(FakeProducer):
+        def close(self) -> None:
+            closed["producer"] += 1
+
+    async def fake_create_pool(*, dsn: str) -> FakePool:
+        assert dsn == "postgresql://db"
+        return FakePool()
+
+    def fake_build_redpanda_producer(settings: object) -> CloseTrackingProducer:
+        typed_settings = cast(SimpleNamespace, settings)
+        assert typed_settings.redpanda_bootstrap_servers == "redpanda:9092"
+        return CloseTrackingProducer()
+
+    def fake_install_stop_handlers(event: asyncio.Event) -> None:
+        nonlocal stop_event
+        stop_event = event
+
+    async def fake_relay_once(*, db_pool: object, producer: object, batch_size: int = 100) -> int:
+        _ = (db_pool, producer)
+        relay_calls.append(batch_size)
+        assert stop_event is not None
+        stop_event.set()
+        return 2
+
+    monkeypatch.setattr(
+        outbox_relay,
+        "load_settings",
+        lambda: SimpleNamespace(
+            postgres_dsn="postgresql://db",
+            redpanda_bootstrap_servers="redpanda:9092",
+        ),
+    )
+    monkeypatch.setattr("solution3.workers.outbox_relay.asyncpg.create_pool", fake_create_pool)
+    monkeypatch.setattr(outbox_relay, "build_redpanda_producer", fake_build_redpanda_producer)
+    monkeypatch.setattr(outbox_relay, "_install_stop_handlers", fake_install_stop_handlers)
+    monkeypatch.setattr(outbox_relay, "relay_once", fake_relay_once)
+
+    await outbox_relay._main_async(interval_seconds=0.1, batch_size=25)
+
+    assert relay_calls == [25]
+    assert closed == {"db": 1, "producer": 1}
+
+
+@pytest.mark.asyncio
+async def test_main_async_logs_iteration_failures_and_waits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stop_event: asyncio.Event | None = None
+    closed = {"db": 0, "producer": 0}
+    relay_attempts = 0
+    wait_calls: list[float] = []
+    logged_errors: list[str] = []
+
+    class FakePool:
+        async def close(self) -> None:
+            closed["db"] += 1
+
+    class CloseTrackingProducer(FakeProducer):
+        def close(self) -> None:
+            closed["producer"] += 1
+
+    async def fake_create_pool(*, dsn: str) -> FakePool:
+        assert dsn == "postgresql://db"
+        return FakePool()
+
+    def fake_build_redpanda_producer(settings: object) -> CloseTrackingProducer:
+        _ = settings
+        return CloseTrackingProducer()
+
+    def fake_install_stop_handlers(event: asyncio.Event) -> None:
+        nonlocal stop_event
+        stop_event = event
+
+    async def fake_relay_once(*, db_pool: object, producer: object, batch_size: int = 100) -> int:
+        nonlocal relay_attempts
+        _ = (db_pool, producer, batch_size)
+        relay_attempts += 1
+        raise RuntimeError("relay failed")
+
+    async def fake_wait_for(awaitable: object, timeout: float) -> None:
+        wait_calls.append(timeout)
+        assert stop_event is not None
+        stop_event.set()
+        await cast(asyncio.Future[object], awaitable)
+
+    def fake_exception(event: str, *, error: str) -> None:
+        assert event == "outbox_relay_iteration_failed"
+        logged_errors.append(error)
+
+    monkeypatch.setattr(
+        outbox_relay,
+        "load_settings",
+        lambda: SimpleNamespace(
+            postgres_dsn="postgresql://db",
+            redpanda_bootstrap_servers="redpanda:9092",
+        ),
+    )
+    monkeypatch.setattr("solution3.workers.outbox_relay.asyncpg.create_pool", fake_create_pool)
+    monkeypatch.setattr(outbox_relay, "build_redpanda_producer", fake_build_redpanda_producer)
+    monkeypatch.setattr(outbox_relay, "_install_stop_handlers", fake_install_stop_handlers)
+    monkeypatch.setattr(outbox_relay, "relay_once", fake_relay_once)
+    monkeypatch.setattr("solution3.workers.outbox_relay.asyncio.wait_for", fake_wait_for)
+    monkeypatch.setattr(outbox_relay.logger, "exception", fake_exception)
+
+    await outbox_relay._main_async(interval_seconds=0.25, batch_size=10)
+
+    assert relay_attempts == 1
+    assert wait_calls == [0.25]
+    assert logged_errors == ["relay failed"]
+    assert closed == {"db": 1, "producer": 1}
