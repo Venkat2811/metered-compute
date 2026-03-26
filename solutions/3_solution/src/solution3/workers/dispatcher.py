@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import argparse
 import json
-from collections.abc import Mapping
-from typing import Protocol
+import signal
+import time
+from collections.abc import Mapping, Sequence
+from typing import Protocol, cast
 
 import pika
 
@@ -11,7 +14,15 @@ from solution3.constants import (
     RABBITMQ_EXCHANGE_PRELOADED,
     RABBITMQ_QUEUE_COLD,
 )
-from solution3.workers._bootstrap_worker import run_worker
+from solution3.core.settings import load_settings
+from solution3.utils.logging import configure_logging, get_logger
+
+try:
+    from kafka import KafkaConsumer
+except ImportError:  # pragma: no cover - explicit runtime guard tested via monkeypatch
+    KafkaConsumer = None
+
+logger = get_logger("solution3.workers.dispatcher")
 
 
 class RabbitMQChannel(Protocol):
@@ -42,6 +53,37 @@ class RabbitMQChannel(Protocol):
         body: bytes,
         properties: pika.BasicProperties,
     ) -> bool | None: ...
+
+
+class RabbitMQConnection(Protocol):
+    def channel(self) -> RabbitMQChannel: ...
+
+    def close(self) -> None: ...
+
+
+class KafkaMessage(Protocol):
+    value: bytes
+
+
+class DispatcherConsumer(Protocol):
+    def poll(
+        self, *, timeout_ms: int, max_records: int
+    ) -> Mapping[object, Sequence[KafkaMessage]]: ...
+
+    def commit(self) -> None: ...
+
+    def close(self) -> None: ...
+
+    def subscribe(self, topics: list[str]) -> None: ...
+
+
+class DispatcherConsumerSettings(Protocol):
+    redpanda_bootstrap_servers: str
+    redpanda_topic_task_requested: str
+
+
+class DispatcherRabbitSettings(Protocol):
+    rabbitmq_url: str
 
 
 def declare_dispatch_topology(channel: RabbitMQChannel) -> None:
@@ -98,8 +140,124 @@ def encode_task_requested_event(event: Mapping[str, object]) -> bytes:
     return json.dumps(event, separators=(",", ":"), sort_keys=True).encode("utf-8")
 
 
+def build_redpanda_consumer(settings: DispatcherConsumerSettings) -> DispatcherConsumer:
+    if KafkaConsumer is None:
+        raise RuntimeError("kafka-python is not installed")
+
+    bootstrap_servers = [
+        server.strip()
+        for server in settings.redpanda_bootstrap_servers.split(",")
+        if server.strip()
+    ]
+    if not bootstrap_servers:
+        raise RuntimeError("redpanda bootstrap servers are not configured")
+
+    consumer = KafkaConsumer(
+        bootstrap_servers=bootstrap_servers,
+        group_id="solution3-dispatcher",
+        enable_auto_commit=False,
+        auto_offset_reset="earliest",
+    )
+    consumer.subscribe([settings.redpanda_topic_task_requested])
+    return cast(DispatcherConsumer, consumer)
+
+
+def build_rabbitmq_channel(
+    settings: DispatcherRabbitSettings,
+) -> tuple[RabbitMQConnection, RabbitMQChannel]:
+    parameters = pika.URLParameters(settings.rabbitmq_url)
+    parameters.heartbeat = 60
+    parameters.blocked_connection_timeout = 3.0
+    parameters.socket_timeout = 3.0
+    connection = pika.BlockingConnection(parameters=parameters)
+    channel = connection.channel()
+    return connection, channel
+
+
+def dispatch_polled_messages(
+    *,
+    consumer: DispatcherConsumer,
+    channel: RabbitMQChannel,
+    poll_timeout_ms: int,
+    max_records: int,
+) -> int:
+    polled = consumer.poll(timeout_ms=poll_timeout_ms, max_records=max_records)
+    messages = [message for batch in polled.values() for message in batch]
+    if not messages:
+        return 0
+
+    for message in messages:
+        event = json.loads(message.value.decode("utf-8"))
+        if not isinstance(event, dict):
+            raise ValueError("dispatcher message payload must decode to an object")
+        dispatch_requested_task(
+            channel=channel,
+            event=event,
+            raw_payload=message.value,
+        )
+
+    consumer.commit()
+    return len(messages)
+
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="solution3 dispatcher")
+    parser.add_argument("--interval", type=float, default=1.0)
+    parser.add_argument("--poll-timeout-ms", type=int, default=1000)
+    parser.add_argument("--max-records", type=int, default=100)
+    return parser.parse_args()
+
+
+def _main_loop(*, interval_seconds: float, poll_timeout_ms: int, max_records: int) -> None:
+    settings = load_settings()
+    consumer = build_redpanda_consumer(settings)
+    connection, channel = build_rabbitmq_channel(settings)
+    declare_dispatch_topology(channel)
+    stop_requested = False
+
+    def _stop(*_args: object) -> None:
+        nonlocal stop_requested
+        stop_requested = True
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(sig, _stop)
+
+    logger.info(
+        "dispatcher_started",
+        interval_seconds=interval_seconds,
+        poll_timeout_ms=poll_timeout_ms,
+        max_records=max_records,
+    )
+    try:
+        while not stop_requested:
+            try:
+                dispatched = dispatch_polled_messages(
+                    consumer=consumer,
+                    channel=channel,
+                    poll_timeout_ms=poll_timeout_ms,
+                    max_records=max_records,
+                )
+                if dispatched > 0:
+                    logger.info("dispatcher_batch_dispatched", count=dispatched)
+                    continue
+            except Exception as exc:
+                logger.exception("dispatcher_iteration_failed", error=str(exc))
+
+            time.sleep(interval_seconds)
+    finally:
+        consumer.close()
+        connection.close()
+        logger.info("dispatcher_stopped")
+
+
 def main() -> None:
-    run_worker(name="solution3_dispatcher")
+    args = _parse_args()
+    configure_logging(enable_sensitive=False)
+    _main_loop(
+        interval_seconds=max(float(args.interval), 0.1),
+        poll_timeout_ms=max(int(args.poll_timeout_ms), 1),
+        max_records=max(int(args.max_records), 1),
+    )
 
 
 if __name__ == "__main__":

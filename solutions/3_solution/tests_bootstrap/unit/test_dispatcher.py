@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
+from typing import cast
 
 import pika
 import pytest
@@ -11,6 +13,11 @@ from solution3.constants import (
     RABBITMQ_QUEUE_COLD,
 )
 from solution3.workers import dispatcher
+
+
+class FakeMessage:
+    def __init__(self, payload: bytes) -> None:
+        self.value = payload
 
 
 class FakeChannel:
@@ -61,6 +68,28 @@ class FakeChannel:
             }
         )
         return self.publish_result
+
+
+class FakeConsumer:
+    def __init__(self, records: dict[object, list[FakeMessage]] | None = None) -> None:
+        self.records = records or {}
+        self.poll_calls: list[tuple[int, int]] = []
+        self.commit_calls = 0
+        self.closed = False
+        self.subscribed_topics: list[str] = []
+
+    def poll(self, *, timeout_ms: int, max_records: int) -> dict[object, list[FakeMessage]]:
+        self.poll_calls.append((timeout_ms, max_records))
+        return self.records
+
+    def commit(self) -> None:
+        self.commit_calls += 1
+
+    def close(self) -> None:
+        self.closed = True
+
+    def subscribe(self, topics: list[str]) -> None:
+        self.subscribed_topics.extend(topics)
 
 
 def test_declare_dispatch_topology_sets_up_exchanges_and_cold_queue() -> None:
@@ -160,3 +189,92 @@ def test_encode_task_requested_event_is_stable_json() -> None:
         "task_id": "abc",
         "tier": "pro",
     }
+
+
+def test_dispatch_polled_messages_publishes_and_commits_batch() -> None:
+    payload = dispatcher.encode_task_requested_event(
+        {"task_id": "abc", "model_class": "small", "tier": "pro", "x": 1, "y": 2}
+    )
+    consumer = FakeConsumer(records={object(): [FakeMessage(payload)]})
+    channel = FakeChannel()
+
+    dispatched = dispatcher.dispatch_polled_messages(
+        consumer=consumer,
+        channel=channel,
+        poll_timeout_ms=250,
+        max_records=10,
+    )
+
+    assert dispatched == 1
+    assert consumer.poll_calls == [(250, 10)]
+    assert consumer.commit_calls == 1
+    assert len(channel.publish_calls) == 1
+
+
+def test_dispatch_polled_messages_does_not_commit_when_publish_fails() -> None:
+    payload = dispatcher.encode_task_requested_event(
+        {"task_id": "abc", "model_class": "small", "tier": "pro"}
+    )
+    consumer = FakeConsumer(records={object(): [FakeMessage(payload)]})
+    channel = FakeChannel()
+    channel.publish_result = False
+
+    with pytest.raises(RuntimeError, match="dispatcher publish was rejected"):
+        dispatcher.dispatch_polled_messages(
+            consumer=consumer,
+            channel=channel,
+            poll_timeout_ms=250,
+            max_records=10,
+        )
+
+    assert consumer.commit_calls == 0
+
+
+def test_build_redpanda_consumer_uses_expected_group_and_topic(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    class FakeKafkaConsumer(FakeConsumer):
+        def __init__(self, **kwargs: object) -> None:
+            super().__init__()
+            captured.update(kwargs)
+
+    monkeypatch.setattr(dispatcher, "KafkaConsumer", FakeKafkaConsumer)
+
+    consumer = dispatcher.build_redpanda_consumer(
+        SimpleNamespace(
+            redpanda_bootstrap_servers="redpanda:9092",
+            redpanda_topic_task_requested="tasks.requested",
+        )
+    )
+
+    typed_consumer = cast(FakeConsumer, consumer)
+    assert captured["bootstrap_servers"] == ["redpanda:9092"]
+    assert captured["group_id"] == "solution3-dispatcher"
+    assert captured["enable_auto_commit"] is False
+    assert typed_consumer.subscribed_topics == ["tasks.requested"]
+
+
+def test_main_configures_logging_and_runs_dispatch_loop(monkeypatch: pytest.MonkeyPatch) -> None:
+    configure_calls: list[bool] = []
+    main_loop_calls: list[tuple[float, int, int]] = []
+
+    def fake_main_loop(*, interval_seconds: float, poll_timeout_ms: int, max_records: int) -> None:
+        main_loop_calls.append((interval_seconds, poll_timeout_ms, max_records))
+
+    def fake_configure_logging(*, enable_sensitive: bool) -> None:
+        configure_calls.append(enable_sensitive)
+
+    monkeypatch.setattr(
+        dispatcher,
+        "_parse_args",
+        lambda: SimpleNamespace(interval=2.5, poll_timeout_ms=250, max_records=25),
+    )
+    monkeypatch.setattr(dispatcher, "_main_loop", fake_main_loop)
+    monkeypatch.setattr(dispatcher, "configure_logging", fake_configure_logging)
+
+    dispatcher.main()
+
+    assert configure_calls == [False]
+    assert main_loop_calls == [(2.5, 250, 25)]
