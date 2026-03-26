@@ -84,6 +84,9 @@ class AppSettings(BaseSettings):
     tigerbeetle_endpoint: str = "tigerbeetle:3000"
     tigerbeetle_cluster_id: int = 0
     tigerbeetle_ledger_id: int = 1
+    tigerbeetle_pending_transfer_timeout_seconds: int = 600
+    tigerbeetle_revenue_account_id: int = 1_000_001
+    tigerbeetle_escrow_account_id: int = 1_000_002
 
     redpanda_topic_task_requested: str = REDPANDA_TOPIC_TASK_REQUESTED
     redpanda_topic_task_started: str = REDPANDA_TOPIC_TASK_STARTED

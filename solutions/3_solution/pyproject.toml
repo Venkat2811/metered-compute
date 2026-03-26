@@ -26,6 +26,7 @@ dependencies = [
   "opentelemetry-api==1.37.0",
   "opentelemetry-sdk==1.37.0",
   "opentelemetry-exporter-otlp-proto-http==1.37.0",
+  "tigerbeetle==0.16.68",
 ]
 
 [dependency-groups]
@@ -79,7 +80,7 @@ warn_unreachable = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["asyncpg", "structlog"]
+module = ["asyncpg", "structlog", "tigerbeetle", "tigerbeetle.*"]
 ignore_missing_imports = true
 
 [tool.setuptools]

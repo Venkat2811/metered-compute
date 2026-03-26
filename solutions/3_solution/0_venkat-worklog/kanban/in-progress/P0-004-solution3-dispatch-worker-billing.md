@@ -4,6 +4,8 @@ Objective:
 
 Implement idempotent command handoff from PG command store into Redpanda and RabbitMQ worker dispatch with hot/cold routing.
 
+Status: in progress as of 2026-03-26. Billing service wrapper and unit tests are green; relay/dispatcher/worker handoff remains.
+
 Acceptance criteria:
 
 - [ ] TigerBeetle reserve path for submit and idempotent retry safety.
@@ -19,7 +21,7 @@ TDD order:
 
 Checklist:
 
-- [ ] Billing service:
+- [x] Billing service:
   - add `src/solution3/services/billing.py`.
   - implement `reserve_credits`, `post_pending_transfer`, `void_pending_transfer`.
   - include account bootstrap and user-account mapping table helper.

@@ -84,6 +84,7 @@ dependencies = [
     { name = "pyjwt" },
     { name = "redis" },
     { name = "structlog" },
+    { name = "tigerbeetle" },
     { name = "uuid6" },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -120,6 +121,7 @@ requires-dist = [
     { name = "pyjwt", specifier = "==2.12.1" },
     { name = "redis", specifier = "==6.4.0" },
     { name = "structlog", specifier = "==25.5.0" },
+    { name = "tigerbeetle", specifier = "==0.16.68" },
     { name = "uuid6", specifier = "==2025.0.1" },
     { name = "uvicorn", extras = ["standard"], specifier = "==0.40.0" },
 ]
@@ -1124,6 +1126,14 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/ef/52/9ba0f43b686e7f3ddfeaa78ac3af750292662284b3661e91ad5494f21dbc/structlog-25.5.0.tar.gz", hash = "sha256:098522a3bebed9153d4570c6d0288abf80a031dfdb2048d59a49e9dc2190fc98", size = 1460830, upload-time = "2025-10-27T08:28:23.028Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a8/45/a132b9074aa18e799b891b91ad72133c98d8042c70f6240e4c5f9dabee2f/structlog-25.5.0-py3-none-any.whl", hash = "sha256:a8453e9b9e636ec59bd9e79bbd4a72f025981b3ba0f5837aebf48f02f37a7f9f", size = 72510, upload-time = "2025-10-27T08:28:21.535Z" },
+]
+
+[[package]]
+name = "tigerbeetle"
+version = "0.16.68"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/be/eb/b7f82038ac16f7a951d83c98a70317bb30afd00d7179070b2a52b176cfe3/tigerbeetle-0.16.68-py3-none-any.whl", hash = "sha256:963f84a2c80ce8935f0857dc48685dbe97305bd677bece8e2c73e058a3e190a6", size = 1603455, upload-time = "2026-01-12T11:58:45.211Z" },
 ]
 
 [[package]]
