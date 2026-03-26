@@ -84,6 +84,57 @@ def _auth_payload_from_cache(payload: dict[str, str] | None) -> dict[str, str] |
     }
 
 
+async def _handle_restate_handoff_failure(
+    *,
+    pool: asyncpg.Pool,
+    redis: aioredis.Redis,
+    billing: Billing,
+    task_id: str,
+    transfer_int: int,
+) -> str | None:
+    """
+    Attempt to deterministically compensate only if the task is still PENDING.
+
+    Returns:
+    - None if the API should keep the existing failure code path (credits released).
+    - A fallback task status string when the task already moved past PENDING.
+    """
+    transitioned = await repository.update_task_status_if_match(
+        pool,
+        task_id,
+        status="FAILED",
+        expected_status="PENDING",
+    )
+    if not transitioned:
+        status = await repository.get_task_status(pool, task_id)
+        return status or "UNKNOWN"
+
+    if not billing.release_credits(transfer_int):
+        rollback = await repository.update_task_status_if_match(
+            pool,
+            task_id,
+            status="PENDING",
+            expected_status="FAILED",
+        )
+        if rollback:
+            log.warning(
+                "restate_handoff_failed_but_task_kept_pending",
+                task_id=task_id,
+            )
+        else:
+            log.warning(
+                "restate_handoff_failed_task_status_rollback_missed",
+                task_id=task_id,
+            )
+        raise HTTPException(
+            503,
+            "Execution orchestration unavailable; credits could not be released.",
+        )
+
+    await cache.invalidate_task(redis, task_id)
+    return None
+
+
 async def _is_restate_service_registered(admin_url: str, service_name: str = "TaskService") -> bool:
     """Return True when Restate reports the deployment for the expected service."""
     async with httpx.AsyncClient() as client:
@@ -338,33 +389,39 @@ def create_app() -> FastAPI:
                     timeout=5,
                 )
                 if response.status_code >= 400:
-                    raise HTTPException(
-                        503,
-                        f"Execution orchestration failed: {response.status_code}",
-                    )
-        except HTTPException:
-            # Keep financial state consistent if Restate invocation could not be started.
-            billing.release_credits(transfer_int)
-            await repository.update_task_status(
-                request.app.state.pg_pool,
-                task_id,
-                "FAILED",
+                    raise RuntimeError(f"Execution orchestration failed: {response.status_code}")
+        except HTTPException as exc:
+            fallback_status = await _handle_restate_handoff_failure(
+                pool=request.app.state.pg_pool,
+                redis=request.app.state.redis,
+                billing=billing,
+                task_id=task_id,
+                transfer_int=transfer_int,
             )
-            await cache.invalidate_task(request.app.state.redis, task_id)
-            raise
-        except Exception as e:
-            log.warning("restate_invoke_failed", task_id=task_id, error=str(e))
-            billing.release_credits(transfer_int)
-            await repository.update_task_status(
-                request.app.state.pg_pool,
-                task_id,
-                "FAILED",
+            if fallback_status is None:
+                raise exc
+            return SubmitResponse(task_id=task_id, status=fallback_status)
+        except Exception as exc:
+            log.warning("restate_invoke_failed", task_id=task_id, error=str(exc))
+            fallback_status = await _handle_restate_handoff_failure(
+                pool=request.app.state.pg_pool,
+                redis=request.app.state.redis,
+                billing=billing,
+                task_id=task_id,
+                transfer_int=transfer_int,
             )
-            await cache.invalidate_task(request.app.state.redis, task_id)
+            if fallback_status is not None:
+                log.info(
+                    "restate_invoke_failed_after_task_transitioned",
+                    task_id=task_id,
+                    status=fallback_status,
+                )
+                return SubmitResponse(task_id=task_id, status=fallback_status)
+
             raise HTTPException(
                 503,
                 "Execution orchestration unavailable. Credits have been released.",
-            ) from e
+            ) from exc
 
         return SubmitResponse(task_id=task_id, status="PENDING")
 

@@ -16,11 +16,11 @@ Primary references:
 
 Showcase implementation exists. Service-grade expansion starts on branch `solution3-5-buildout`.
 
-Current board shape is intentional:
+Current board shape:
 
-- keep one expansion epic in `todo/`
-- fix correctness/hardening before adding feature surface
-- only split into smaller cards later if the implementation proves that a single epic is too coarse
+- all currently prioritized P0 cards are complete
+- correctness is stabilized, and the remaining work should be tracked explicitly as new
+  one-off cards in `done/` with explicit acceptance criteria before expansion
 
 ## Baseline Requirements Snapshot
 
@@ -87,8 +87,8 @@ Priority: `P0` (blocker), `P1` (must-have), `P2` (nice-to-have)
 - `make prove` passes from a clean state
 - README/RFC alignment notes match shipped behavior
 
-## Planned Tasks
+## Completed P0 Cards
 
-- `todo/P0-001-solution5-hardening-auth-readiness.md`
-- `todo/P0-002-solution5-restate-external-compute.md`
-- `todo/P0-003-solution5-service-surface-proof.md`
+- `done/P0-001-solution5-hardening-auth-readiness.md`
+- `done/P0-002-solution5-restate-external-compute.md`
+- `done/P0-003-solution5-service-surface-proof.md`

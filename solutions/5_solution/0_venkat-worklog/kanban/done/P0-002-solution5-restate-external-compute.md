@@ -1,5 +1,7 @@
 # P0-002 Solution 5 - Restate-Control Plane + External Compute Separation
 
+Status: DONE
+
 Objective:
 
 Refactor inline workflow compute into an external compute plane while keeping Restate as durable orchestration layer.

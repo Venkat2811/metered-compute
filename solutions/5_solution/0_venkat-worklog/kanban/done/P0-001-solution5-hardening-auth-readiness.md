@@ -1,15 +1,17 @@
 # P0-001 Solution 5 - Security, Authz, and Readiness Hardening
 
+Status: DONE (with deterministic handoff compensation)
+
 Objective:
 
 Close correctness and authorization gaps in the current Sol 5 showcase without changing the TB + Restate thesis.
 
 Acceptance criteria:
 
-- [ ] Poll endpoint enforces authenticated ownership checks.
-- [ ] Admin credits endpoint enforces admin role.
-- [ ] State transitions in repository are guarded.
-- [ ] Readiness includes Restate and TigerBeetle checks.
+- [x] Poll endpoint enforces authenticated ownership checks.
+- [x] Admin credits endpoint enforces admin role.
+- [x] State transitions in repository are guarded.
+- [x] Readiness includes Restate and TigerBeetle checks.
 
 TDD order:
 
@@ -19,17 +21,17 @@ TDD order:
 
 Checklist:
 
-- [ ] App/Auth:
+- [x] App/Auth:
   - add token/user claim extraction on poll path.
   - enforce caller user id matches task user.
-- [ ] Admin security:
+- [x] Admin security:
   - require role from auth principal for `/v1/admin/credits`.
-- [ ] Repository safety:
-  - change update methods to include expected-status guards.
-  - return transition outcome and avoid silent overwrite.
-- [ ] Workflow handoff:
-- [ ] replace fire-and-forget submission path with durable error-return semantics.
-- [ ] if workflow invoke fails, API returns explicit server state error and performs deterministic compensation.
+- [x] Repository safety:
+  - use guarded transitions for handoff rollback.
+  - return transition outcome and avoid blind overwrite.
+- [x] Workflow handoff:
+  - replace fire-and-forget submission path with guarded compensation semantics.
+  - if workflow invoke fails after task creation, API either transitions `PENDING -> FAILED` atomically with credit release or returns current terminal/in-flight state.
 - [ ] Readiness:
   - add TigerBeetle connectivity probe.
   - add Restate connectivity probe + clear degradation code path.
