@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from contextlib import suppress
 from datetime import UTC, datetime
@@ -272,6 +273,233 @@ def test_build_redpanda_consumer_uses_projector_group_and_topics(
         "tasks.cancelled",
         "tasks.expired",
     ]
+
+
+def test_build_redpanda_consumer_rejects_empty_bootstrap_servers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeKafkaConsumer(FakeConsumer):
+        def __init__(self, **kwargs: object) -> None:
+            super().__init__()
+
+    monkeypatch.setattr(projector, "KafkaConsumer", FakeKafkaConsumer)
+
+    with pytest.raises(RuntimeError, match="bootstrap servers are not configured"):
+        projector.build_redpanda_consumer(
+            SimpleNamespace(
+                redpanda_bootstrap_servers=" , ",
+                redpanda_topic_task_requested="tasks.requested",
+                redpanda_topic_task_started="tasks.started",
+                redpanda_topic_task_completed="tasks.completed",
+                redpanda_topic_task_failed="tasks.failed",
+                redpanda_topic_task_cancelled="tasks.cancelled",
+                redpanda_topic_task_expired="tasks.expired",
+            )
+        )
+
+
+@pytest.mark.asyncio
+async def test_project_polled_messages_async_returns_zero_for_empty_poll() -> None:
+    consumer = FakeConsumer(records={})
+
+    projected = await projector.project_polled_messages_async(
+        consumer=cast(projector.ProjectorConsumer, consumer),
+        db_pool=cast(asyncpg.Pool, object()),
+        redis_client=cast(projector.ProjectorRedis, FakeRedis()),
+        consumer_name="projector",
+        projector_name="projector",
+        poll_timeout_ms=250,
+        max_records=10,
+        task_result_ttl_seconds=300,
+    )
+
+    assert projected == 0
+    assert consumer.commit_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_main_async_processes_batch_and_closes_resources(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[tuple[str, dict[str, object]]] = []
+    stop_event = asyncio.Event()
+    consumer = FakeConsumer()
+
+    class RuntimeRedis(FakeRedis):
+        async def ping(self) -> bool:
+            return True
+
+        async def close(self) -> None:
+            events.append(("redis_closed", {}))
+
+    class FakePool:
+        async def close(self) -> None:
+            events.append(("pool_closed", {}))
+
+    class FakeLogger:
+        def info(self, event: str, **kwargs: object) -> None:
+            events.append((event, dict(kwargs)))
+
+        def exception(self, event: str, **kwargs: object) -> None:
+            events.append((event, dict(kwargs)))
+
+    async def fake_create_pool(*_: object, **__: object) -> FakePool:
+        return FakePool()
+
+    async def fake_project_batch(*_: object, **__: object) -> int:
+        stop_event.set()
+        return 2
+
+    monkeypatch.setattr(projector, "logger", FakeLogger())
+    monkeypatch.setattr(
+        projector,
+        "load_settings",
+        lambda: SimpleNamespace(
+            postgres_dsn="postgresql://postgres:postgres@postgres:5432/postgres",
+            redis_url="redis://redis:6379/0",
+        ),
+    )
+    monkeypatch.setattr("solution3.workers.projector.asyncpg.create_pool", fake_create_pool)
+    monkeypatch.setattr(
+        "solution3.workers.projector.Redis.from_url",
+        lambda *_, **__: RuntimeRedis(),
+    )
+    monkeypatch.setattr(projector, "build_redpanda_consumer", lambda _settings: consumer)
+    monkeypatch.setattr("solution3.workers.projector.asyncio.Event", lambda: stop_event)
+    monkeypatch.setattr(projector, "_install_stop_handlers", lambda _event: None)
+    monkeypatch.setattr(projector, "project_polled_messages_async", fake_project_batch)
+
+    await projector._main_async(
+        interval_seconds=0.1,
+        poll_timeout_ms=250,
+        max_records=10,
+        task_result_ttl_seconds=300,
+    )
+
+    assert (
+        "projector_started",
+        {"interval_seconds": 0.1, "poll_timeout_ms": 250, "max_records": 10},
+    ) in events
+    assert ("projector_batch_projected", {"count": 2}) in events
+    assert ("redis_closed", {}) in events
+    assert ("pool_closed", {}) in events
+    assert consumer.closed is True
+
+
+@pytest.mark.asyncio
+async def test_main_async_logs_iteration_failure_then_waits_for_shutdown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+    stop_event = asyncio.Event()
+    consumer = FakeConsumer()
+    wait_calls: list[float] = []
+
+    class RuntimeRedis(FakeRedis):
+        async def ping(self) -> bool:
+            return True
+
+        async def close(self) -> None:
+            events.append("redis_closed")
+
+    class FakePool:
+        async def close(self) -> None:
+            events.append("pool_closed")
+
+    class FakeLogger:
+        def info(self, event: str, **_: object) -> None:
+            events.append(event)
+
+        def exception(self, event: str, **_: object) -> None:
+            events.append(event)
+
+    async def fake_create_pool(*_: object, **__: object) -> FakePool:
+        return FakePool()
+
+    async def fake_project_batch(*_: object, **__: object) -> int:
+        raise RuntimeError("boom")
+
+    async def fake_wait_for(awaitable: object, *, timeout: float) -> object:
+        wait_calls.append(timeout)
+        stop_event.set()
+        return await cast(asyncio.Future[bool], awaitable)
+
+    monkeypatch.setattr(projector, "logger", FakeLogger())
+    monkeypatch.setattr(
+        projector,
+        "load_settings",
+        lambda: SimpleNamespace(
+            postgres_dsn="postgresql://postgres:postgres@postgres:5432/postgres",
+            redis_url="redis://redis:6379/0",
+        ),
+    )
+    monkeypatch.setattr("solution3.workers.projector.asyncpg.create_pool", fake_create_pool)
+    monkeypatch.setattr(
+        "solution3.workers.projector.Redis.from_url",
+        lambda *_, **__: RuntimeRedis(),
+    )
+    monkeypatch.setattr(projector, "build_redpanda_consumer", lambda _settings: consumer)
+    monkeypatch.setattr("solution3.workers.projector.asyncio.Event", lambda: stop_event)
+    monkeypatch.setattr(projector, "_install_stop_handlers", lambda _event: None)
+    monkeypatch.setattr(projector, "project_polled_messages_async", fake_project_batch)
+    monkeypatch.setattr("solution3.workers.projector.asyncio.wait_for", fake_wait_for)
+
+    await projector._main_async(
+        interval_seconds=0.25,
+        poll_timeout_ms=250,
+        max_records=10,
+        task_result_ttl_seconds=300,
+    )
+
+    assert "projector_iteration_failed" in events
+    assert "projector_stopped" in events
+    assert "redis_closed" in events
+    assert "pool_closed" in events
+    assert wait_calls == [0.25]
+
+
+def test_projector_main_configures_logging_and_runs_async(monkeypatch: pytest.MonkeyPatch) -> None:
+    configure_calls: list[bool] = []
+    async_calls: list[tuple[float, int, int, int]] = []
+
+    async def fake_main_async(
+        *,
+        interval_seconds: float,
+        poll_timeout_ms: int,
+        max_records: int,
+        task_result_ttl_seconds: int,
+    ) -> None:
+        async_calls.append(
+            (interval_seconds, poll_timeout_ms, max_records, task_result_ttl_seconds)
+        )
+
+    def fake_asyncio_run(coro: object) -> None:
+        assert asyncio.iscoroutine(coro)
+        with suppress(StopIteration):
+            coro.send(None)
+
+    monkeypatch.setattr(
+        projector,
+        "_parse_args",
+        lambda: SimpleNamespace(
+            interval=2.0,
+            poll_timeout_ms=250,
+            max_records=10,
+            result_ttl_seconds=300,
+        ),
+    )
+    monkeypatch.setattr(projector, "_main_async", fake_main_async)
+    monkeypatch.setattr(
+        projector,
+        "configure_logging",
+        lambda *, enable_sensitive: configure_calls.append(enable_sensitive),
+    )
+    monkeypatch.setattr("solution3.workers.projector.asyncio.run", fake_asyncio_run)
+
+    projector.main()
+
+    assert configure_calls == [False]
+    assert async_calls == [(2.0, 250, 10, 300)]
 
 
 def test_main_configures_logging_and_runs_async_main(monkeypatch: pytest.MonkeyPatch) -> None:

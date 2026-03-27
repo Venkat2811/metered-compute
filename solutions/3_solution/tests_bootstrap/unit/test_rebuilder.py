@@ -64,6 +64,13 @@ async def test_clear_task_cache_removes_only_task_keys() -> None:
 
 
 @pytest.mark.asyncio
+async def test_clear_task_cache_is_noop_without_redis() -> None:
+    deleted = await rebuilder.clear_task_cache(None)
+
+    assert deleted == 0
+
+
+@pytest.mark.asyncio
 async def test_rebuild_from_sql_resets_projection_state_and_rebuilds_from_commands(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -177,3 +184,120 @@ def test_main_uses_event_rebuild_when_from_beginning(monkeypatch: pytest.MonkeyP
 
     assert configure_calls == [False]
     assert async_calls == [(True, 4)]
+
+
+@pytest.mark.asyncio
+async def test_main_async_uses_sql_strategy_and_closes_resources(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[tuple[str, dict[str, object]]] = []
+
+    class FakePool:
+        async def close(self) -> None:
+            events.append(("pool_closed", {}))
+
+    class RuntimeRedis(FakeRedis):
+        async def close(self) -> None:
+            events.append(("redis_closed", {}))
+
+    async def fake_create_pool(*_: object, **__: object) -> FakePool:
+        return FakePool()
+
+    async def fake_rebuild_from_sql(*_: object, **__: object) -> rebuilder.RebuildResult:
+        return rebuilder.RebuildResult(records_processed=3, cache_keys_deleted=1)
+
+    class FakeLogger:
+        def info(self, event: str, **kwargs: object) -> None:
+            events.append((event, dict(kwargs)))
+
+    monkeypatch.setattr(rebuilder, "logger", FakeLogger())
+    monkeypatch.setattr(
+        rebuilder,
+        "load_settings",
+        lambda: SimpleNamespace(
+            postgres_dsn="postgresql://postgres:postgres@postgres:5432/postgres",
+            redis_url="redis://redis:6379/0",
+        ),
+    )
+    monkeypatch.setattr("solution3.workers.rebuilder.asyncpg.create_pool", fake_create_pool)
+    monkeypatch.setattr(
+        "solution3.workers.rebuilder.Redis.from_url",
+        lambda *_, **__: RuntimeRedis(),
+    )
+    monkeypatch.setattr(rebuilder, "rebuild_from_sql", fake_rebuild_from_sql)
+
+    await rebuilder._main_async(
+        from_beginning=False,
+        max_empty_polls=2,
+        poll_timeout_ms=250,
+        max_records=10,
+        task_result_ttl_seconds=300,
+    )
+
+    assert (
+        "projection_rebuild_completed",
+        {"strategy": "sql", "records_processed": 3, "cache_keys_deleted": 1},
+    ) in events
+    assert ("redis_closed", {}) in events
+    assert ("pool_closed", {}) in events
+
+
+@pytest.mark.asyncio
+async def test_main_async_uses_event_strategy_and_closes_consumer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[tuple[str, dict[str, object]]] = []
+
+    class FakePool:
+        async def close(self) -> None:
+            events.append(("pool_closed", {}))
+
+    class RuntimeRedis(FakeRedis):
+        async def close(self) -> None:
+            events.append(("redis_closed", {}))
+
+    consumer = FakeConsumer()
+
+    async def fake_create_pool(*_: object, **__: object) -> FakePool:
+        return FakePool()
+
+    async def fake_rebuild_from_events(*_: object, **__: object) -> rebuilder.RebuildResult:
+        return rebuilder.RebuildResult(records_processed=5, cache_keys_deleted=2)
+
+    class FakeLogger:
+        def info(self, event: str, **kwargs: object) -> None:
+            events.append((event, dict(kwargs)))
+
+    monkeypatch.setattr(rebuilder, "logger", FakeLogger())
+    monkeypatch.setattr(
+        rebuilder,
+        "load_settings",
+        lambda: SimpleNamespace(
+            postgres_dsn="postgresql://postgres:postgres@postgres:5432/postgres",
+            redis_url="redis://redis:6379/0",
+        ),
+    )
+    monkeypatch.setattr("solution3.workers.rebuilder.asyncpg.create_pool", fake_create_pool)
+    monkeypatch.setattr(
+        "solution3.workers.rebuilder.Redis.from_url",
+        lambda *_, **__: RuntimeRedis(),
+    )
+    monkeypatch.setattr(rebuilder, "build_redpanda_consumer", lambda *_args, **_kwargs: consumer)
+    monkeypatch.setattr(rebuilder, "rebuild_from_events", fake_rebuild_from_events)
+    monkeypatch.setattr(rebuilder, "uuid4", lambda: "rebuild-run")
+
+    await rebuilder._main_async(
+        from_beginning=True,
+        max_empty_polls=2,
+        poll_timeout_ms=250,
+        max_records=10,
+        task_result_ttl_seconds=300,
+    )
+
+    assert (
+        "projection_rebuild_completed",
+        {"strategy": "events", "records_processed": 5, "cache_keys_deleted": 2},
+    ) in events
+    assert consumer.closed is True
+    assert ("redis_closed", {}) in events
+    assert ("pool_closed", {}) in events

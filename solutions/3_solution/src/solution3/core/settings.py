@@ -128,6 +128,10 @@ class AppSettings(BaseSettings):
     projector_commit_interval_seconds: float = 1.0
     reconciler_poll_interval_seconds: float = 30.0
     billing_reconcile_stale_after_seconds: int = 720
+    webhook_delivery_timeout_seconds: float = 3.0
+    webhook_max_attempts: int = 3
+    webhook_initial_backoff_seconds: float = 1.0
+    webhook_max_backoff_seconds: float = 4.0
 
     admin_api_key: str
     alice_api_key: str

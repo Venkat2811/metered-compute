@@ -86,9 +86,9 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
-      rabbitmq:
+      redpanda:
         condition: service_healthy
-      postgres:
+      rabbitmq:
         condition: service_healthy
     restart: unless-stopped
 
@@ -107,9 +107,9 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
-      rabbitmq:
-        condition: service_healthy
       postgres:
+        condition: service_healthy
+      redpanda:
         condition: service_healthy
     restart: unless-stopped
 
@@ -128,9 +128,9 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
-      rabbitmq:
-        condition: service_healthy
       postgres:
+        condition: service_healthy
+      redpanda:
         condition: service_healthy
     restart: unless-stopped
 
@@ -191,10 +191,12 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
-      rabbitmq:
-        condition: service_healthy
       postgres:
         condition: service_healthy
+      redpanda:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
   hydra-migrate:

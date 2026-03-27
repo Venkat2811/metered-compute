@@ -103,7 +103,6 @@ async def test_main_async_logs_heartbeat_and_stops(monkeypatch: pytest.MonkeyPat
     ("module_name", "expected_name"),
     [
         ("solution3.workers.watchdog", "solution3_watchdog"),
-        ("solution3.workers.webhook_dispatcher", "solution3_webhook_dispatcher"),
     ],
 )
 def test_worker_entrypoints_delegate_to_run_worker(

@@ -154,6 +154,21 @@ async def get_task_command(pool: asyncpg.Pool, task_id: UUID) -> TaskCommand | N
     return None if row is None else _map_task_command(row)
 
 
+async def get_task_callback_url(pool: asyncpg.Pool, *, task_id: UUID) -> str | None:
+    row = await pool.fetchrow(
+        """
+        SELECT callback_url
+        FROM cmd.task_commands
+        WHERE task_id=$1
+        """,
+        task_id,
+    )
+    if row is None:
+        return None
+    callback_url = row["callback_url"]
+    return str(callback_url) if callback_url is not None else None
+
+
 async def get_task_query_view(pool: asyncpg.Pool, task_id: UUID) -> TaskQueryView | None:
     row = await pool.fetchrow("SELECT * FROM query.task_query_view WHERE task_id=$1", task_id)
     return None if row is None else _map_task_query_view(row)
@@ -385,6 +400,44 @@ async def mark_outbox_events_published(pool: asyncpg.Pool, *, event_ids: list[UU
         WHERE event_id = ANY($1::uuid[])
         """,
         event_ids,
+    )
+
+
+async def insert_webhook_dead_letter(
+    pool: asyncpg.Pool,
+    *,
+    event_id: UUID,
+    task_id: UUID,
+    topic: str,
+    callback_url: str,
+    payload: Mapping[str, Any],
+    attempts: int,
+    last_error: str,
+) -> None:
+    await pool.execute(
+        """
+        INSERT INTO cmd.webhook_dead_letters(
+          event_id,
+          task_id,
+          topic,
+          callback_url,
+          payload,
+          attempts,
+          last_error
+        )
+        VALUES($1, $2, $3, $4, $5::jsonb, $6, $7)
+        ON CONFLICT (event_id) DO UPDATE SET
+          attempts = GREATEST(cmd.webhook_dead_letters.attempts, EXCLUDED.attempts),
+          last_error = EXCLUDED.last_error,
+          updated_at = now()
+        """,
+        event_id,
+        task_id,
+        topic,
+        callback_url,
+        json.dumps(dict(payload)),
+        attempts,
+        last_error,
     )
 
 

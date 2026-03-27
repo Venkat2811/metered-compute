@@ -51,12 +51,13 @@ Current proof scope is intentionally narrower than the final RFC scope:
 - live infra integration for submit -> TigerBeetle reserve -> outbox relay -> Redpanda -> dispatcher -> RabbitMQ -> worker -> poll completed
 - live infra integration for `poll` query-view fallback after evicting the Redis task key
 - live infra integration for projection reset -> Redpanda replay rebuild -> `poll` restored from rebuilt query state
+- live infra integration for webhook callback success and durable dead-letter capture after bounded delivery retries
 - bootstrap demo smoke
 - one failure-path script check for readiness timeout
 
 ## Current Status
 
-This directory has completed `P0-004` and now has the projector, rebuild, and stale-reserved reconciler slices of `P0-005` landed.
+This directory has completed `P0-004` and now has the projector, rebuild, stale-reserved reconciler, and webhook-delivery slices of `P0-005` landed.
 
 What is already real:
 
@@ -78,6 +79,7 @@ What is already real:
 - live poll fallback from `query.task_query_view` when the Redis task key is missing
 - rebuild tooling that can restore the projection from SQL or replay the Redpanda task log from offset 0
 - real reconciler path for stale `RESERVED` tasks: one-shot or looped scan, guarded transition to `EXPIRED`, Redis hot-path update, active-slot release, and `tasks.expired` outbox emission
+- real webhook worker that consumes terminal Redpanda events, looks up `callback_url` from the command store, retries delivery with bounded exponential backoff, and persists exhausted deliveries into `cmd.webhook_dead_letters`
 - outbox relay and dispatcher contract seams with unit-tested publish/flush behavior
 - worker-shaped entrypoints for `dispatcher`, `projector`, `reconciler`, `worker`, `watchdog`, and `webhook-worker`
 - isolated test suite in `tests_bootstrap/` covering unit, integration, e2e, and fault slices for the implemented scope
@@ -85,7 +87,6 @@ What is already real:
 What is not implemented yet:
 
 - explicit TigerBeetle posted/voided drift alignment branches in the reconciler
-- webhook worker delivery with retry/dead-letter handling
 - successful admin top-up path
 - scenario harness and load profile
 

@@ -472,3 +472,46 @@ async def test_expire_stale_reserved_task_updates_state_and_emits_outbox() -> No
         "status": "EXPIRED",
         "billing_state": "EXPIRED",
     }
+
+
+@pytest.mark.asyncio
+async def test_get_task_callback_url_returns_optional_string() -> None:
+    pool = FakePool()
+    pool.fetchrow_results = [{"callback_url": "https://example.test/webhook"}, None]
+
+    first = await repository.get_task_callback_url(
+        pool, task_id=UUID("019c6db7-0857-7858-af93-f724ae4fe2c2")
+    )
+    second = await repository.get_task_callback_url(
+        pool, task_id=UUID("019c6db7-1439-7ace-bd2b-e1a3bb03328c")
+    )
+
+    assert first == "https://example.test/webhook"
+    assert second is None
+
+
+@pytest.mark.asyncio
+async def test_insert_webhook_dead_letter_upserts_by_event_id() -> None:
+    pool = FakePool()
+    event_id = UUID("019c6db7-0857-7858-af93-f724ae4fe2c2")
+    task_id = UUID("019c6db7-1439-7ace-bd2b-e1a3bb03328c")
+    payload = {"task_id": str(task_id), "status": "FAILED"}
+
+    await repository.insert_webhook_dead_letter(
+        pool,
+        event_id=event_id,
+        task_id=task_id,
+        topic="tasks.failed",
+        callback_url="https://example.test/webhook",
+        payload=payload,
+        attempts=3,
+        last_error="status=503",
+    )
+
+    assert len(pool.execute_calls) == 1
+    query, args = pool.execute_calls[0]
+    assert "INSERT INTO cmd.webhook_dead_letters" in query
+    assert "ON CONFLICT (event_id) DO UPDATE" in query
+    assert args[:4] == (event_id, task_id, "tasks.failed", "https://example.test/webhook")
+    assert json.loads(cast(str, args[4])) == payload
+    assert args[5:] == (3, "status=503")

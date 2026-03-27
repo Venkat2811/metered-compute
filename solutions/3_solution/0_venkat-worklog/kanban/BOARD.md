@@ -22,7 +22,7 @@ Current board shape is intentional:
 - core contracts and migrations are complete and verified
 - auth + command API skeleton is complete and verified
 - `P0-004` is complete and verified
-- `P0-005` is in progress, with projector + rebuild + stale-reserved reconciliation landed and webhook / remaining drift branches still open
+- `P0-005` is in progress, with projector + rebuild + stale-reserved reconciliation + webhook delivery landed; the remaining gap is the explicit TigerBeetle drift-alignment branch
 - sequencing and proof requirements live inside each epic checklist
 
 ## Baseline Requirements Snapshot
