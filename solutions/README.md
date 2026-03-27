@@ -35,13 +35,14 @@ Solutions 0 and 5 use API key auth. Solutions 1-4 use JWT/OAuth.
 Implemented in every coded solution: `structlog` JSON logging, `prometheus_client` metrics, Grafana dashboard.
 Additional implementation in `1_solution`: optional OTel+Tempo tracing profile.
 Described in RFC for later tracks: alertmanager rules, OpenSearch, ClickHouse.
+For `3_solution`, OTel/Tempo, OpenSearch, and ClickHouse remain RFC-only options, not missing completion work.
 
 | Solution | Implemented                                                     | Described in RFC                                     |
 | -------- | --------------------------------------------------------------- | ---------------------------------------------------- |
 | 0        | structlog + Prometheus + Grafana                               | Alertmanager rules                                   |
 | 1        | structlog + Prometheus + Grafana + optional OTel+Tempo profile | Alertmanager                                         |
 | 2        | structlog + Prometheus + Grafana                               | Alertmanager, OTel+Tempo, OpenSearch                |
-| 3        | structlog + Prometheus + Grafana                               | OTel+Tempo, OpenSearch, ClickHouse                  |
+| 3        | structlog + Prometheus + Grafana                               | RFC-only options: OTel+Tempo, OpenSearch, ClickHouse |
 | 4 (RFC)  | -                                                               | Sol 1 observability + outbox metrics                 |
 | 5        | structlog + Prometheus + Grafana                               | -                                                    |
 
@@ -121,9 +122,9 @@ Solution 5 has 8 long-lived containers plus the one-shot `tb-init` formatter —
 | **Model classes**     | No (x+y only)                         | small/medium/large                                                               | small/medium/large             | small/medium/large                            | small/medium/large (from Sol 1)                 | No (x+y only)                                  |
 | **Logging**           | structlog JSON                        | structlog JSON                                                                   | structlog JSON                 | structlog JSON                                | structlog JSON (from Sol 1)                     | structlog JSON                                 |
 | **Metrics**           | Prometheus client                     | Prometheus client                                                                | Prometheus client              | Prometheus client                             | Prometheus (Sol 1) + outbox metrics (Sol 2)     | Prometheus client                              |
-| **Tracing**           | —                                     | Optional profile: OTel+Tempo                                                     | RFC: OTel+Tempo                | RFC: OTel+Tempo                               | RFC: OTel+Tempo (from Sol 1)                    | —                                              |
-| **Log search**        | —                                     | —                                                                                | RFC: OpenSearch                | RFC: OpenSearch                               | — (from Sol 1)                                  | —                                              |
-| **OLAP**              | —                                     | —                                                                                | —                              | Optional: ClickHouse                          | — (from Sol 1)                                  | —                                              |
+| **Tracing**           | —                                     | Optional profile: OTel+Tempo                                                     | RFC: OTel+Tempo                | RFC-only option: OTel+Tempo                   | RFC: OTel+Tempo (from Sol 1)                    | —                                              |
+| **Log search**        | —                                     | —                                                                                | RFC: OpenSearch                | RFC-only option: OpenSearch                   | — (from Sol 1)                                  | —                                              |
+| **OLAP**              | —                                     | —                                                                                | —                              | RFC-only option: ClickHouse                   | — (from Sol 1)                                  | —                                              |
 | **Alerting**          | Config: Alertmanager                  | Config: Alertmanager                                                             | Config: Alertmanager           | Config: Alertmanager                          | Config: Alertmanager (from Sol 1)               | —                                              |
 | **Dashboards**        | Grafana                               | Grafana                                                                          | Grafana                        | Grafana                                       | Grafana (from Sol 1)                            | Grafana                                        |
 | **Containers**        | ~7                                    | ~9                                                                               | ~12                            | ~15                                           | ~10 (Sol 1 base + outbox-relay from Sol 2)      | ~8                                             |

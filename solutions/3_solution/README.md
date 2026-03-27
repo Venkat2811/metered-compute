@@ -94,9 +94,9 @@ What is already real:
 
 What is not implemented yet:
 
-- optional RFC extras: OTel/Tempo runtime instrumentation, OpenSearch, and ClickHouse analytics
+- RFC-only optional extensions: OTel/Tempo runtime instrumentation, OpenSearch, and ClickHouse analytics
 
-Those remain optional follow-on work outside the now-complete `P0` scope. The kanban reflects the real ship order.
+Those remain RFC-only options and are not required to consider the coded Solution 3 track complete. The kanban reflects the real ship order.
 
 ## Lay Of The Land
 
