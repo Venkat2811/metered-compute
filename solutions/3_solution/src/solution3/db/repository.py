@@ -266,6 +266,38 @@ async def submit_task_command(
         return True, _map_task_command(inserted_row)
 
 
+async def record_admin_credit_topup(
+    pool: asyncpg.Pool,
+    *,
+    user_id: UUID,
+    amount: int,
+    reason: str,
+    admin_user_id: UUID,
+    api_key: str,
+    new_balance: int,
+) -> None:
+    async with pool.acquire() as connection, connection.transaction():
+        await connection.execute(
+            """
+            INSERT INTO cmd.outbox_events(aggregate_id, event_type, topic, payload)
+            VALUES($1, $2, $3, $4::jsonb)
+            """,
+            user_id,
+            "billing.topup",
+            "billing.topup",
+            json.dumps(
+                {
+                    "user_id": str(user_id),
+                    "amount": amount,
+                    "reason": reason,
+                    "admin_user_id": str(admin_user_id),
+                    "api_key": api_key,
+                    "new_balance": new_balance,
+                }
+            ),
+        )
+
+
 async def cancel_task_command(pool: asyncpg.Pool, *, task_id: UUID) -> bool:
     async with pool.acquire() as connection, connection.transaction():
         updated = await connection.fetchrow(

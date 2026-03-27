@@ -70,8 +70,8 @@ class AdminCreditsRequest(BaseModel):
 
 
 class AdminCreditsResponse(BaseModel):
-    accepted: bool
-    message: str
+    api_key: str
+    new_balance: int
 
 
 class OAuthTokenRequest(BaseModel):

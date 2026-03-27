@@ -167,18 +167,29 @@ def scenario_idempotency_replay(client: httpx.Client) -> dict[str, Any]:
     return {"task_id": first_id}
 
 
-def scenario_admin_credits_degraded(client: httpx.Client) -> dict[str, Any]:
+def scenario_admin_credits_success(client: httpx.Client) -> dict[str, Any]:
     settings = load_settings()
     admin_token = _oauth_token(client, api_key=settings.admin_api_key)
-    response = client.post(
+    first = client.post(
         V1_ADMIN_CREDITS_PATH,
         headers={"Authorization": f"Bearer {admin_token}"},
-        json={"api_key": settings.alice_api_key, "amount": 10, "reason": "scenario_probe"},
+        json={"api_key": settings.bob_api_key, "amount": 3, "reason": "scenario_topup_1"},
     )
-    _assert(response.status_code == 503, f"expected 503, got {response.status_code} {response.text}")
-    payload = response.json()
-    _assert(payload.get("error", {}).get("code") == "SERVICE_DEGRADED", payload)
-    return {"status": response.status_code}
+    _assert(first.status_code == 200, f"expected 200, got {first.status_code} {first.text}")
+    first_payload = first.json()
+    _assert(first_payload.get("api_key") == settings.bob_api_key, first_payload)
+    _assert(isinstance(first_payload.get("new_balance"), int), first_payload)
+
+    second = client.post(
+        V1_ADMIN_CREDITS_PATH,
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"api_key": settings.bob_api_key, "amount": 4, "reason": "scenario_topup_2"},
+    )
+    _assert(second.status_code == 200, f"expected 200, got {second.status_code} {second.text}")
+    second_payload = second.json()
+    _assert(second_payload.get("api_key") == settings.bob_api_key, second_payload)
+    _assert(second_payload.get("new_balance") == first_payload["new_balance"] + 4, second_payload)
+    return {"new_balance": second_payload["new_balance"]}
 
 
 def scenario_cancel_while_worker_paused(client: httpx.Client) -> dict[str, Any]:
@@ -211,7 +222,7 @@ def _scenario_registry() -> dict[str, ScenarioFn]:
         "submit_poll_small": scenario_submit_poll_small,
         "submit_poll_medium": scenario_submit_poll_medium,
         "idempotency_replay": scenario_idempotency_replay,
-        "admin_credits_degraded": scenario_admin_credits_degraded,
+        "admin_credits_success": scenario_admin_credits_success,
         "cancel_while_worker_paused": scenario_cancel_while_worker_paused,
     }
 

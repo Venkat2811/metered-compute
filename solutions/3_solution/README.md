@@ -53,7 +53,7 @@ Current proof scope is intentionally narrower than the final RFC scope:
 - live infra integration for projection reset -> Redpanda replay rebuild -> `poll` restored from rebuilt query state
 - live infra integration for reconciler repair after command/query rollback against TigerBeetle posted and voided terminal states
 - live infra integration for webhook callback success and durable dead-letter capture after bounded delivery retries
-- deterministic scenario harness covering health, auth, submit/poll, idempotency, degraded admin, and cancel-while-paused flows
+- deterministic scenario harness covering health, auth, submit/poll, idempotency, admin top-up, and cancel-while-paused flows
 - bootstrap demo smoke
 - one failure-path script check for readiness timeout
 
@@ -72,6 +72,7 @@ What is already real:
 - Redis hot-path task cache for poll reads
 - TigerBeetle billing primitives for account bootstrap and pending/post/void transfer lifecycle
 - TigerBeetle bootstrap on API startup for the platform accounts and seeded users
+- admin credit top-up path via active API-key lookup, TigerBeetle direct transfer, and command-store outbox event emission
 - real outbox relay process that drains unpublished command events into Redpanda with publish-after-ack semantics
 - real dispatcher process that consumes `tasks.requested` from Redpanda and republishes to RabbitMQ header exchanges
 - real worker consume loop over RabbitMQ cold + warm queues with guarded running transition and terminal completion updates
@@ -93,10 +94,9 @@ What is already real:
 
 What is not implemented yet:
 
-- successful admin top-up path
 - optional RFC extras: OTel/Tempo runtime instrumentation, OpenSearch, and ClickHouse analytics
 
-Those land in the remaining `P0-006` slice. The kanban reflects the real ship order.
+Those remain optional follow-on work outside the now-complete `P0` scope. The kanban reflects the real ship order.
 
 ## Lay Of The Land
 

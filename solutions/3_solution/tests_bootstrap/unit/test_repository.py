@@ -176,6 +176,38 @@ async def test_fetch_active_user_and_api_key_hash_validation() -> None:
 
 
 @pytest.mark.asyncio
+async def test_record_admin_credit_topup_persists_outbox_event() -> None:
+    connection = FakeConnection()
+    pool = FakePool(connection=connection)
+    user_id = UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+    admin_user_id = UUID("5ba7f2f8-24be-448a-9552-3af6e06e8898")
+
+    await repository.record_admin_credit_topup(
+        pool,
+        user_id=user_id,
+        amount=25,
+        reason="integration-topup",
+        admin_user_id=admin_user_id,
+        api_key="c9169bc2-2980-4155-be29-442ffc44ce64",
+        new_balance=275,
+    )
+
+    assert len(connection.execute_calls) == 1
+    query, args = connection.execute_calls[0]
+    assert "INSERT INTO cmd.outbox_events" in query
+    assert args[:3] == (user_id, "billing.topup", "billing.topup")
+    payload = json.loads(cast(str, args[3]))
+    assert payload == {
+        "user_id": str(user_id),
+        "amount": 25,
+        "reason": "integration-topup",
+        "admin_user_id": str(admin_user_id),
+        "api_key": "c9169bc2-2980-4155-be29-442ffc44ce64",
+        "new_balance": 275,
+    }
+
+
+@pytest.mark.asyncio
 async def test_list_active_users_with_initial_credits_returns_pairs() -> None:
     pool = FakePool()
     pool.fetch_results = [

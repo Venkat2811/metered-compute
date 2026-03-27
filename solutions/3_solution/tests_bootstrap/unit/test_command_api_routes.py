@@ -66,11 +66,18 @@ class FakeBilling:
         *,
         reserve_result: ReserveCreditsResult = ReserveCreditsResult.ACCEPTED,
         void_ok: bool = True,
+        topup_ok: bool = True,
+        balance: int = 500,
     ) -> None:
         self.reserve_result = reserve_result
         self.void_ok = void_ok
+        self.topup_ok = topup_ok
+        self.balance = balance
         self.reserve_calls: list[tuple[UUID, UUID, int]] = []
         self.void_calls: list[UUID] = []
+        self.ensure_user_calls: list[tuple[UUID, int]] = []
+        self.topup_calls: list[tuple[UUID, UUID, int]] = []
+        self.balance_calls: list[UUID] = []
 
     def reserve_credits(
         self,
@@ -85,6 +92,25 @@ class FakeBilling:
     def void_pending_transfer(self, *, pending_transfer_id: UUID | str) -> bool:
         self.void_calls.append(UUID(str(pending_transfer_id)))
         return self.void_ok
+
+    def ensure_user_account(self, user_id: UUID | str, *, initial_credits: int = 0) -> None:
+        self.ensure_user_calls.append((UUID(str(user_id)), initial_credits))
+
+    def topup_credits(
+        self,
+        *,
+        user_id: UUID | str,
+        transfer_id: UUID | str,
+        amount: int,
+    ) -> bool:
+        self.topup_calls.append((UUID(str(user_id)), UUID(str(transfer_id)), amount))
+        if self.topup_ok:
+            self.balance += amount
+        return self.topup_ok
+
+    def get_balance(self, user_id: UUID | str) -> int:
+        self.balance_calls.append(UUID(str(user_id)))
+        return self.balance
 
 
 def _settings() -> SimpleNamespace:
@@ -539,6 +565,137 @@ def test_admin_credits_forbidden_for_non_admin(monkeypatch: pytest.MonkeyPatch) 
         )
 
     assert response.status_code == 403
+
+
+def test_admin_credits_topups_target_user_for_admin(monkeypatch: pytest.MonkeyPatch) -> None:
+    from solution3.api import admin_routes
+
+    target_user = AuthUser(
+        api_key="c9169bc2-2980-4155-be29-442ffc44ce64",
+        user_id=UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+        name="test-user-2",
+        role=UserRole.USER,
+        tier=SubscriptionTier.FREE,
+        scopes=frozenset(),
+    )
+    recorded_events: list[dict[str, object]] = []
+
+    async def fake_fetch_active_user_by_api_key(*_: object, **kwargs: object) -> AuthUser | None:
+        assert kwargs["api_key"] == target_user.api_key
+        return target_user
+
+    async def fake_record_admin_credit_topup(*_: object, **kwargs: object) -> None:
+        recorded_events.append(dict(kwargs))
+
+    monkeypatch.setattr(
+        admin_routes, "fetch_active_user_by_api_key", fake_fetch_active_user_by_api_key
+    )
+    monkeypatch.setattr(admin_routes, "record_admin_credit_topup", fake_record_admin_credit_topup)
+
+    admin_user = _auth_user(role=UserRole.ADMIN)
+    client, _, billing = _client(
+        monkeypatch,
+        current_user=admin_user,
+        billing_client=FakeBilling(balance=250),
+    )
+    with client:
+        response = client.post(
+            "/v1/admin/credits",
+            headers={"Authorization": "Bearer jwt.header.signature"},
+            json={
+                "api_key": target_user.api_key,
+                "amount": 25,
+                "reason": "unit-test-topup",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {"api_key": target_user.api_key, "new_balance": 275}
+    assert billing.ensure_user_calls == [(target_user.user_id, 0)]
+    assert len(billing.topup_calls) == 1
+    assert billing.topup_calls[0][0] == target_user.user_id
+    assert billing.topup_calls[0][2] == 25
+    assert billing.balance_calls == [target_user.user_id]
+    assert recorded_events and recorded_events[0]["user_id"] == target_user.user_id
+    assert recorded_events[0]["amount"] == 25
+    assert recorded_events[0]["reason"] == "unit-test-topup"
+    assert recorded_events[0]["admin_user_id"] == admin_user.user_id
+
+
+def test_admin_credits_returns_not_found_for_unknown_target_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from solution3.api import admin_routes
+
+    async def fake_fetch_active_user_by_api_key(*_: object, **__: object) -> AuthUser | None:
+        return None
+
+    monkeypatch.setattr(
+        admin_routes, "fetch_active_user_by_api_key", fake_fetch_active_user_by_api_key
+    )
+
+    client, _, billing = _client(monkeypatch, current_user=_auth_user(role=UserRole.ADMIN))
+    with client:
+        response = client.post(
+            "/v1/admin/credits",
+            headers={"Authorization": "Bearer jwt.header.signature"},
+            json={
+                "api_key": "11111111-1111-1111-1111-111111111111",
+                "amount": 10,
+                "reason": "missing-user",
+            },
+        )
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "NOT_FOUND"
+    assert billing.topup_calls == []
+
+
+def test_admin_credits_returns_503_when_tigerbeetle_topup_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from solution3.api import admin_routes
+
+    target_user = AuthUser(
+        api_key="c9169bc2-2980-4155-be29-442ffc44ce64",
+        user_id=UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+        name="test-user-2",
+        role=UserRole.USER,
+        tier=SubscriptionTier.FREE,
+        scopes=frozenset(),
+    )
+
+    async def fake_fetch_active_user_by_api_key(*_: object, **__: object) -> AuthUser | None:
+        return target_user
+
+    async def fail_if_called(*_: object, **__: object) -> None:
+        raise AssertionError("record_admin_credit_topup should not be called on TB failure")
+
+    monkeypatch.setattr(
+        admin_routes, "fetch_active_user_by_api_key", fake_fetch_active_user_by_api_key
+    )
+    monkeypatch.setattr(admin_routes, "record_admin_credit_topup", fail_if_called)
+
+    client, _, billing = _client(
+        monkeypatch,
+        current_user=_auth_user(role=UserRole.ADMIN),
+        billing_client=FakeBilling(topup_ok=False, balance=250),
+    )
+    with client:
+        response = client.post(
+            "/v1/admin/credits",
+            headers={"Authorization": "Bearer jwt.header.signature"},
+            json={
+                "api_key": target_user.api_key,
+                "amount": 25,
+                "reason": "tb-failure",
+            },
+        )
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "SERVICE_DEGRADED"
+    assert len(billing.topup_calls) == 1
+    assert billing.balance_calls == []
 
 
 def test_submit_returns_402_when_tigerbeetle_reserve_rejects(

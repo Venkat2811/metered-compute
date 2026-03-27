@@ -21,7 +21,7 @@ Priority order used across all RFCs:
 Solutions 0-3 are independently excellent architectural approaches with different tradeoff profiles, each implemented with full test suites and demo scripts.
 Solution 4 is the remaining RFC-only design that extends the architectural exploration without implementation.
 Solution 4 is a launch decision: the best of Sol 1 (speed) + Sol 2 (correctness), minimizing infrastructure for a 2-week production ship.
-Solution 5 is a minimal showcase (~700 LOC) proving TigerBeetle + Restate replace thousands of lines of infrastructure code.
+Solution 5 is a compact showcase proving TigerBeetle + Restate replace thousands of lines of infrastructure code.
 
 Solutions 0 and 5 use API key auth. Solutions 1-4 use JWT/OAuth.
 
@@ -52,7 +52,7 @@ Described in RFC for later tracks: alertmanager rules, OpenSearch, ClickHouse.
 | Task submit/poll/cancel          | code   | code   | code   | code             | RFC          | code   |
 | Credit check + deduction         | code   | code   | code   | code             | RFC          | code   |
 | Auth (API key / JWT)             | code   | code   | code   | code             | RFC          | code   |
-| Admin credits                    | code   | code   | code   | partial          | RFC          | code   |
+| Admin credits                    | code   | code   | code   | code             | RFC          | code   |
 | Concurrency + idempotency        | code   | code   | code   | code             | RFC          | code   |
 | Demo script                      | code   | code   | code   | code             | -            | code   |
 | Unit + integration tests         | code   | code   | code   | code             | -            | code   |
