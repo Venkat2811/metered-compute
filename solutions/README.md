@@ -57,7 +57,7 @@ For `3_solution`, OTel/Tempo, OpenSearch, and ClickHouse remain RFC-only options
 | Concurrency + idempotency        | code   | code   | code   | code             | RFC          | code   |
 | Demo script                      | code   | code   | code   | code             | -            | code   |
 | Unit + integration tests         | code   | code   | code   | code             | -            | code   |
-| Scenario harness (12-13 scenarios) | code | code   | code   | code             | -            | code   |
+| Scenario harness (shipped)          | 12   | 13     | 13     | 8                | -            | 13     |
 | Sustained load test             | code | code   | code   | code             | -            | code   |
 | Fault tests (degradation proof)  | code   | code   | code   | code             | -            | code   |
 | structlog + Prometheus + Grafana | code   | code   | code   | code             | RFC          | code   |
@@ -70,7 +70,10 @@ For `3_solution`, OTel/Tempo, OpenSearch, and ClickHouse remain RFC-only options
 
 Each solution: `cd <N>_solution && docker compose up --build`
 
-Run tests: `cd <N>_solution && pytest tests/`
+Run tests:
+
+- Solutions 0,1,2,5: `cd <N>_solution && pytest tests/`
+- Solution 3: `cd <N>_solution && pytest tests_bootstrap/`
 
 Full verification: `cd <N>_solution && make prove`
 
@@ -120,7 +123,7 @@ Solution 5 has 8 long-lived containers plus the one-shot `tb-init` formatter —
 | **Task IDs**          | UUIDv7 (app-generated)                | UUIDv7 (app-generated)                                                           | UUIDv7 (app-generated)         | UUIDv7 (app-generated, maps to TB u128)       | UUIDv7 (from Sol 1)                             | UUIDv7 (maps to TB u128)                       |
 | **Idempotency**       | Redis key                             | Lua-checked                                                                      | PG unique constraint           | TB transfer ID = task ID                      | Lua-checked (from Sol 1)                        | PG unique constraint + Restate                 |
 | **Webhook**           | No                                    | Optional (async POST)                                                            | RabbitMQ webhook exchange      | Redpanda webhook consumer                     | Optional (from Sol 1)                           | No                                             |
-| **Batch**             | No                                    | Lua in loop                                                                      | Single reservation, fan-out    | TB transfer batch                             | Lua in loop (from Sol 1)                        | No                                             |
+| **Batch**             | No                                    | Lua in loop                                                                      | Single reservation, fan-out    | RFC (batch endpoint documented; not implemented in shipped API) | Lua in loop (from Sol 1)                        | No                                             |
 | **Queue position**    | Approximate (LLEN)                    | Approximate (XLEN; XINFO GROUPS lag/pending metrics)                            | RabbitMQ management API        | Redpanda consumer lag                         | Approximate (XLEN; XINFO GROUPS from Sol 1)     | N/A (Restate)                                  |
 | **Replay/rebuild**    | No                                    | No                                                                               | No (consumed = gone)           | Yes (offset reset)                            | No (from Sol 1)                                 | Yes (Restate journal replay)                   |
 | **Worker routing**    | Round-robin (Celery)                  | Round-robin (stream)                                                             | SLA queue routing              | Hot/cold model-affinity                       | Round-robin (from Sol 1)                        | Restate (single handler)                       |
