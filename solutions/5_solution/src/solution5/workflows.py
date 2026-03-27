@@ -67,6 +67,44 @@ def _build_replayable_action(action: Callable[..., Any], *args: Any, **kwargs: A
     return _sync_action
 
 
+def _compute_outcome(
+    *,
+    task_id: str,
+    user_id: str,
+    x: int,
+    y: int,
+    model_class: str,
+    base_url: str,
+    timeout_seconds: float,
+    retry_attempts: int,
+) -> dict[str, Any]:
+    """Wrap compute so Restate journals a value, not an exception.
+
+    If the callable passed to `ctx.run(...)` raises, Restate treats the step as a
+    transient invocation failure and retries the whole workflow. For Solution 5 we
+    want deterministic business outcomes for compute faults, so the step returns a
+    structured result instead.
+    """
+
+    try:
+        result = request_compute_sync(
+            task_id=task_id,
+            user_id=user_id,
+            x=x,
+            y=y,
+            model_class=model_class,
+            base_url=base_url,
+            timeout_seconds=timeout_seconds,
+            retry_attempts=retry_attempts,
+        )
+    except ComputeTimeoutError as error:
+        return {"ok": False, "reason": "compute_timeout", "error": str(error)}
+    except Exception as error:
+        return {"ok": False, "reason": "compute_failed", "error": str(error)}
+
+    return {"ok": True, "result": result}
+
+
 @task_service.handler()
 async def execute_task(ctx: restate.Context, request: dict[str, Any]) -> dict[str, Any]:
     """Durable task lifecycle orchestrator (control plane).
@@ -160,36 +198,35 @@ async def execute_task(ctx: restate.Context, request: dict[str, Any]) -> dict[st
 
     # ── Data plane: external compute via dedicated worker ──
     # Restate keeps the lifecycle control plane durable; compute is separated.
-    try:
-        result: dict[str, int] = await _run_replay_compatible(
-            "compute",
-            request_compute_sync,
-            task_id=task_id,
-            user_id=user_id,
-            x=x,
-            y=y,
-            model_class="default",
-            base_url=task_settings.compute_worker_url,
-            timeout_seconds=task_settings.compute_timeout_seconds,
-            retry_attempts=task_settings.compute_retry_attempts,
-        )
+    compute_outcome = await _run_replay_compatible(
+        "compute",
+        _compute_outcome,
+        task_id=task_id,
+        user_id=user_id,
+        x=x,
+        y=y,
+        model_class="default",
+        base_url=task_settings.compute_worker_url,
+        timeout_seconds=task_settings.compute_timeout_seconds,
+        retry_attempts=task_settings.compute_retry_attempts,
+    )
+    if compute_outcome.get("ok") is True:
+        result = compute_outcome["result"]
         await _run_replay_compatible(
             "compute_metric_ok",
             metrics.COMPUTE_REQUESTS.labels(result="ok").inc,
         )
-    except Exception as error:
+    else:
         if await _maybe_complete_cancellation():
             return {"status": "CANCELLED", "reason": "cancelled_during_compute"}
 
-        fail_reason = "compute_failed"
-        if isinstance(error, ComputeTimeoutError):
-            fail_reason = "compute_timeout"
+        fail_reason = str(compute_outcome.get("reason", "compute_failed"))
 
         await _run_replay_compatible(
             "compute_metric_error",
             metrics.COMPUTE_REQUESTS.labels(result="error").inc,
         )
-        if isinstance(error, ComputeTimeoutError):
+        if fail_reason == "compute_timeout":
             await _run_replay_compatible(
                 "compute_timeout_metric",
                 metrics.TASK_TIMEOUT.inc,
@@ -207,6 +244,13 @@ async def execute_task(ctx: restate.Context, request: dict[str, Any]) -> dict[st
             metrics.TASK_FAILED.inc,
         )
         if updated:
+            released = await _run_replay_compatible(
+                "release_credits_after_compute_failure",
+                billing.release_credits,
+                tb_transfer_id,
+            )
+            if not released:
+                log.warning("workflow_compute_failure_release_failed", task_id=task_id)
             await _run_replay_compatible(
                 "invalidate_task_after_compute_failure",
                 cache.invalidate_task,
@@ -223,7 +267,11 @@ async def execute_task(ctx: restate.Context, request: dict[str, Any]) -> dict[st
         )
         if current_status in {"COMPLETED", "CANCELLED", "FAILED", "CANCEL_REQUESTED"}:
             return {"status": current_status}
-        log.warning("workflow_compute_failed", task_id=task_id, error=str(error))
+        log.warning(
+            "workflow_compute_failed",
+            task_id=task_id,
+            error=str(compute_outcome.get("error", fail_reason)),
+        )
         return {"status": "REJECTED"}
 
     cancelled_after_compute = await _maybe_complete_cancellation()

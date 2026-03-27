@@ -144,6 +144,7 @@ class TestExecuteTaskLifecycle:
         )
         assert response["status"] == "FAILED"
         cache_invalidate_task.assert_awaited_once_with(redis, "t4")
+        assert billing.release_credits.call_count == 1
         assert cast(AsyncMock, repository.update_task_status_if_match).await_count == 2
 
     @pytest.mark.asyncio
@@ -198,7 +199,7 @@ class TestExecuteTaskLifecycle:
         assert response["status"] == "FAILED"
         assert response["reason"] == "compute_timeout"
         cache_invalidate_task.assert_awaited_once_with(redis, "t7")
-        assert billing.release_credits.call_count == 0
+        assert billing.release_credits.call_count == 1
 
     @pytest.mark.asyncio
     async def test_capture_failure_with_cancel_request(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -235,7 +236,7 @@ class TestExecuteTaskLifecycle:
     async def test_compute_hands_request_to_worker(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _, billing, _ = self._set_state(monkeypatch)
         billing.capture_credits = MagicMock(return_value=True)
-        worker_call = AsyncMock()
+        worker_call = MagicMock()
         worker_call.return_value = {"sum": 11, "product": 12}
         monkeypatch.setattr(workflows, "request_compute_sync", worker_call)
         monkeypatch.setattr(

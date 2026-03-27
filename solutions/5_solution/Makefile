@@ -6,7 +6,7 @@ VENV_ACTIVATE := source "$(REPO_ROOT).venv/bin/activate"
 LOG_DIR ?= $(REPO_ROOT)worklog/evidence/latest
 
 .PHONY: help venv sync fmt lint type security smell quality \
-		test-unit test-integration test-all coverage \
+		test-unit test-integration test-fault test-all coverage \
 		up down build logs ps wait-ready capture-logs reset-state demo scenarios loadtest \
 		prove full-check clean
 
@@ -22,6 +22,7 @@ help:
 	@echo "  quality           Run full quality gate"
 	@echo "  test-unit         Run unit tests"
 	@echo "  test-integration  Run integration tests (requires compose stack)"
+	@echo "  test-fault        Run live fault tests (requires compose stack)"
 	@echo "  test-all          Run all tests"
 	@echo "  coverage          Run coverage gate"
 	@echo "  up                Start compose stack"
@@ -68,8 +69,11 @@ test-unit:
 test-integration:
 	$(VENV_ACTIVATE) && INTEGRATION=1 pytest tests/integration -v
 
+test-fault:
+	$(VENV_ACTIVATE) && FAULT=1 pytest tests/fault -v
+
 test-all:
-	$(VENV_ACTIVATE) && INTEGRATION=1 pytest tests/ -v
+	$(VENV_ACTIVATE) && INTEGRATION=1 FAULT=1 pytest tests/ -v
 
 coverage:
 	@./scripts/coverage_gate.sh

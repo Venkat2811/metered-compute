@@ -34,7 +34,7 @@ source .venv/bin/activate
 bash scripts/demo.sh
 ```
 
-Optional full proof command (quality + coverage + clean compose rebuild + integration + 13 scenarios + log capture):
+Optional full proof command (quality + coverage + clean compose rebuild + integration + fault + 13 scenarios + log capture):
 
 ```bash
 make prove
@@ -334,6 +334,12 @@ Integration tests (requires compose stack):
 
 ```bash
 make test-integration
+```
+
+Fault tests (requires compose stack):
+
+```bash
+make test-fault
 ```
 
 Scenarios (13 scenarios, requires compose stack):

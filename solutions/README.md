@@ -58,7 +58,7 @@ Described in RFC for later tracks: alertmanager rules, OpenSearch, ClickHouse.
 | Unit + integration tests         | code   | code   | code   | code             | -            | code   |
 | Scenario harness (12-13 scenarios) | code | code   | code   | code             | -            | code   |
 | Sustained load test (100 RPS)      | code | code   | code   | code             | -            | code   |
-| Fault tests (degradation proof)  | code   | code   | code   | code             | -            | -      |
+| Fault tests (degradation proof)  | code   | code   | code   | code             | -            | code   |
 | structlog + Prometheus + Grafana | code   | code   | code   | code             | RFC          | code   |
 | Alertmanager rules               | config | config | config | config           | RFC          | -      |
 | OTel + Tempo                     | -      | optional profile | RFC    | RFC              | RFC          | -      |
