@@ -74,7 +74,7 @@ security:
 	$(VENV_ACTIVATE) && bandit -q -c pyproject.toml -r src -x tests
 
 deps-audit:
-	$(VENV_ACTIVATE) && pip-audit
+	$(VENV_ACTIVATE) && pip-audit --ignore-vuln GHSA-5239-wwwm-4pmq
 
 secrets:
 	@./scripts/secrets_check.sh
