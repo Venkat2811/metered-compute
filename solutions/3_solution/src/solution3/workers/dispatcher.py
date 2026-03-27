@@ -9,6 +9,7 @@ from contextlib import suppress
 from typing import Protocol, cast
 
 import pika
+from prometheus_client import start_http_server
 
 from solution3.constants import (
     RABBITMQ_EXCHANGE_COLDSTART,
@@ -16,6 +17,7 @@ from solution3.constants import (
     RABBITMQ_QUEUE_COLD,
 )
 from solution3.core.settings import load_settings
+from solution3.observability.metrics import TASK_DISPATCHES_TOTAL
 from solution3.utils.logging import configure_logging, get_logger
 
 try:
@@ -88,7 +90,7 @@ class DispatcherRabbitSettings(Protocol):
 
 
 class DispatcherRuntimeSettings(DispatcherConsumerSettings, DispatcherRabbitSettings, Protocol):
-    pass
+    dispatcher_metrics_port: int
 
 
 def declare_dispatch_topology(channel: RabbitMQChannel) -> None:
@@ -138,7 +140,9 @@ def dispatch_requested_task(
         ),
     )
     if accepted is False:
+        TASK_DISPATCHES_TOTAL.labels(result="rejected").inc()
         raise RuntimeError("dispatcher publish was rejected")
+    TASK_DISPATCHES_TOTAL.labels(result="ok").inc()
 
 
 def encode_task_requested_event(event: Mapping[str, object]) -> bytes:
@@ -237,6 +241,7 @@ def _parse_args() -> argparse.Namespace:
 
 def _main_loop(*, interval_seconds: float, poll_timeout_ms: int, max_records: int) -> None:
     settings = load_settings()
+    start_http_server(settings.dispatcher_metrics_port)
     stop_requested = False
     consumer: DispatcherConsumer | None = None
     connection: RabbitMQConnection | None = None

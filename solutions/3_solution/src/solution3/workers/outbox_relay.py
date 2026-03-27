@@ -4,12 +4,18 @@ import argparse
 import asyncio
 import signal
 from collections.abc import Mapping
+from datetime import UTC, datetime
 from typing import Protocol
 
 import asyncpg
+from prometheus_client import start_http_server
 
 from solution3.core.settings import load_settings
 from solution3.db.repository import fetch_unpublished_outbox_events, mark_outbox_events_published
+from solution3.observability.metrics import (
+    OUTBOX_EVENTS_PUBLISHED_TOTAL,
+    OUTBOX_PUBLISH_LAG_SECONDS,
+)
 from solution3.utils.logging import configure_logging, get_logger
 
 try:
@@ -56,6 +62,14 @@ class KafkaProducerClient(Protocol):
 
 class RedpandaSettings(Protocol):
     redpanda_bootstrap_servers: str
+    outbox_relay_metrics_port: int
+
+
+def _event_lag_seconds(created_at: datetime) -> float:
+    now = datetime.now(tz=UTC)
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=UTC)
+    return max((now - created_at).total_seconds(), 0.0)
 
 
 class RedpandaRelayProducer:
@@ -130,8 +144,10 @@ async def relay_once(
 ) -> int:
     events = await fetch_unpublished_outbox_events(db_pool, limit=batch_size)
     if not events:
+        OUTBOX_PUBLISH_LAG_SECONDS.set(0.0)
         return 0
 
+    OUTBOX_PUBLISH_LAG_SECONDS.set(_event_lag_seconds(events[0].created_at))
     for event in events:
         producer.produce(
             topic=event.topic,
@@ -142,6 +158,8 @@ async def relay_once(
 
     producer.flush()
     await mark_outbox_events_published(db_pool, event_ids=[event.event_id for event in events])
+    for event in events:
+        OUTBOX_EVENTS_PUBLISHED_TOTAL.labels(topic=event.topic, result="ok").inc()
     return len(events)
 
 
@@ -167,6 +185,7 @@ def _install_stop_handlers(stop_event: asyncio.Event) -> None:
 async def _main_async(*, interval_seconds: float, batch_size: int) -> None:
     settings = load_settings()
     db_pool = await asyncpg.create_pool(dsn=str(settings.postgres_dsn))
+    start_http_server(settings.outbox_relay_metrics_port)
     producer = build_redpanda_producer(settings)
     stop_event = asyncio.Event()
     _install_stop_handlers(stop_event)

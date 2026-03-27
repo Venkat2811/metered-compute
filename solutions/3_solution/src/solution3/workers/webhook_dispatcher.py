@@ -4,12 +4,14 @@ import argparse
 import asyncio
 import json
 import signal
+import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from typing import Protocol, cast
 from uuid import UUID
 
 import asyncpg
 import httpx
+from prometheus_client import start_http_server
 
 from solution3.constants import (
     REDPANDA_TOPIC_TASK_CANCELLED,
@@ -19,6 +21,10 @@ from solution3.constants import (
 )
 from solution3.core.settings import load_settings
 from solution3.db.repository import get_task_callback_url, insert_webhook_dead_letter
+from solution3.observability.metrics import (
+    WEBHOOK_DELIVERIES_TOTAL,
+    WEBHOOK_DELIVERY_DURATION_SECONDS,
+)
 from solution3.utils.logging import configure_logging, get_logger
 
 try:
@@ -191,9 +197,11 @@ async def process_message(
 
     callback_url = await get_task_callback_url(db_pool, task_id=task_id)
     if not callback_url:
+        WEBHOOK_DELIVERIES_TOTAL.labels(result="skipped_no_callback").inc()
         return True
 
     payload = _terminal_webhook_payload(decoded)
+    start = time.perf_counter()
     delivered, attempts, last_error = await _deliver_with_retries(
         http_client=http_client,
         callback_url=callback_url,
@@ -204,7 +212,10 @@ async def process_message(
         max_backoff_seconds=max_backoff_seconds,
         sleep=sleep,
     )
+    duration = time.perf_counter() - start
     if delivered:
+        WEBHOOK_DELIVERIES_TOTAL.labels(result="ok").inc()
+        WEBHOOK_DELIVERY_DURATION_SECONDS.labels(result="ok").observe(duration)
         return True
 
     await insert_webhook_dead_letter(
@@ -225,6 +236,8 @@ async def process_message(
         attempts=attempts,
         error=last_error,
     )
+    WEBHOOK_DELIVERIES_TOTAL.labels(result="dead_letter").inc()
+    WEBHOOK_DELIVERY_DURATION_SECONDS.labels(result="dead_letter").observe(duration)
     return True
 
 
@@ -336,6 +349,7 @@ async def _main_async(
     settings = load_settings()
     db_pool = await asyncpg.create_pool(dsn=str(settings.postgres_dsn))
     http_client = httpx.AsyncClient(timeout=settings.webhook_delivery_timeout_seconds)
+    start_http_server(settings.webhook_metrics_port)
     consumer = build_redpanda_consumer(settings)
     stop_event = asyncio.Event()
     _install_stop_handlers(stop_event)

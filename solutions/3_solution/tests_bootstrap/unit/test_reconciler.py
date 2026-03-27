@@ -503,6 +503,7 @@ async def test_main_async_logs_resolution_and_closes_resources(
 ) -> None:
     events: list[tuple[str, dict[str, object]]] = []
     stop_event = asyncio.Event()
+    metrics_ports: list[int] = []
 
     class FakePool:
         async def close(self) -> None:
@@ -537,9 +538,11 @@ async def test_main_async_logs_resolution_and_closes_resources(
         lambda: SimpleNamespace(
             postgres_dsn="postgresql://postgres:postgres@postgres:5432/postgres",
             redis_url="redis://redis:6379/0",
+            reconciler_metrics_port=9400,
         ),
     )
     monkeypatch.setattr("solution3.workers.reconciler.asyncpg.create_pool", fake_create_pool)
+    monkeypatch.setattr(reconciler, "start_http_server", metrics_ports.append)
     monkeypatch.setattr(
         "solution3.workers.reconciler.Redis.from_url",
         lambda *_, **__: RuntimeRedis(),
@@ -561,6 +564,7 @@ async def test_main_async_logs_resolution_and_closes_resources(
     )
 
     assert ("reconciler_stale_resolved", {"count": 2}) in events
+    assert metrics_ports == [9400]
     assert ("tb_closed", {}) in events
     assert ("redis_closed", {}) in events
     assert ("pool_closed", {}) in events
@@ -572,6 +576,7 @@ async def test_main_async_waits_between_iterations_until_shutdown(
 ) -> None:
     wait_calls: list[float] = []
     stop_event = asyncio.Event()
+    metrics_ports: list[int] = []
 
     class FakePool:
         async def close(self) -> None:
@@ -605,9 +610,11 @@ async def test_main_async_waits_between_iterations_until_shutdown(
         lambda: SimpleNamespace(
             postgres_dsn="postgresql://postgres:postgres@postgres:5432/postgres",
             redis_url="redis://redis:6379/0",
+            reconciler_metrics_port=9400,
         ),
     )
     monkeypatch.setattr("solution3.workers.reconciler.asyncpg.create_pool", fake_create_pool)
+    monkeypatch.setattr(reconciler, "start_http_server", metrics_ports.append)
     monkeypatch.setattr(
         "solution3.workers.reconciler.Redis.from_url",
         lambda *_, **__: RuntimeRedis(),
@@ -629,4 +636,5 @@ async def test_main_async_waits_between_iterations_until_shutdown(
         result_ttl_seconds=300,
     )
 
+    assert metrics_ports == [9400]
     assert wait_calls == [0.25]

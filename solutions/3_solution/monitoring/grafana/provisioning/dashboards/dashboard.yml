@@ -1,7 +1,7 @@
 apiVersion: 1
 
 providers:
-  - name: solution3-bootstrap
+  - name: solution3-overview
     orgId: 1
     folder: Solution3
     type: file

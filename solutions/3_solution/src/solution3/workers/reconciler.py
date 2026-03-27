@@ -7,6 +7,7 @@ from typing import Protocol, cast
 
 import asyncpg
 import tigerbeetle as tb
+from prometheus_client import start_http_server
 from redis.asyncio import Redis
 
 from solution3.constants import BillingState, TaskStatus
@@ -17,6 +18,7 @@ from solution3.db.repository import (
     list_stale_reserved_tasks,
 )
 from solution3.models.domain import ReconciledTaskState
+from solution3.observability.metrics import RECONCILER_RESOLUTIONS_TOTAL, TASK_COMPLETIONS_TOTAL
 from solution3.services.billing import (
     PendingTransferState,
     TigerBeetleBilling,
@@ -177,6 +179,11 @@ async def reconcile_stale_reserved_tasks(
                 state=reconciled,
                 result_ttl_seconds=result_ttl_seconds,
             )
+            RECONCILER_RESOLUTIONS_TOTAL.labels(
+                resolution=transfer_state.value,
+                status=reconciled.status.value,
+            ).inc()
+            TASK_COMPLETIONS_TOTAL.labels(status=reconciled.status.value).inc()
             resolved += 1
     return resolved
 
@@ -193,6 +200,7 @@ async def _main_async(
     redis_client = Redis.from_url(str(settings.redis_url), decode_responses=True)
     tb_client, billing = _build_billing(settings)
     await redis_client.ping()
+    start_http_server(settings.reconciler_metrics_port)
     stop_event = asyncio.Event()
     _install_stop_handlers(stop_event)
 

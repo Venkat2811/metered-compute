@@ -9,6 +9,7 @@ from typing import Protocol, cast
 from uuid import UUID
 
 import asyncpg
+from prometheus_client import start_http_server
 from redis.asyncio import Redis
 
 from solution3.constants import (
@@ -22,6 +23,7 @@ from solution3.constants import (
 from solution3.core.settings import load_settings
 from solution3.db.repository import apply_task_projection, is_inbox_event_processed
 from solution3.models.domain import TaskQueryView
+from solution3.observability.metrics import EVENTS_PROJECTED_TOTAL
 from solution3.utils.logging import configure_logging, get_logger
 
 try:
@@ -59,6 +61,7 @@ class ProjectorConsumer(Protocol):
 
 
 class ProjectorSettings(Protocol):
+    projector_metrics_port: int
     redpanda_bootstrap_servers: str
     redpanda_topic_task_requested: str
     redpanda_topic_task_started: str
@@ -185,6 +188,7 @@ async def project_message(
         consumer_name=consumer_name,
     )
     if already_processed:
+        EVENTS_PROJECTED_TOTAL.labels(topic=message.topic, result="duplicate").inc()
         return False
 
     projected = await apply_task_projection(
@@ -198,6 +202,7 @@ async def project_message(
         event=event,
     )
     if projected is None:
+        EVENTS_PROJECTED_TOTAL.labels(topic=message.topic, result="missing").inc()
         logger.warning(
             "projector_source_task_missing",
             task_id=event.get("task_id"),
@@ -210,6 +215,7 @@ async def project_message(
         task=projected,
         task_result_ttl_seconds=task_result_ttl_seconds,
     )
+    EVENTS_PROJECTED_TOTAL.labels(topic=message.topic, result="applied").inc()
     return True
 
 
@@ -281,6 +287,7 @@ async def _main_async(
     db_pool = await asyncpg.create_pool(dsn=str(settings.postgres_dsn))
     redis_client = Redis.from_url(str(settings.redis_url), decode_responses=True)
     await redis_client.ping()
+    start_http_server(settings.projector_metrics_port)
     projector_redis = cast(ProjectorRedis, redis_client)
     consumer = build_redpanda_consumer(settings)
     stop_event = asyncio.Event()

@@ -4,6 +4,8 @@ import argparse
 import asyncio
 import signal
 
+from prometheus_client import start_http_server
+
 from solution3.utils.logging import configure_logging, get_logger
 
 logger = get_logger("solution3.worker")
@@ -40,9 +42,13 @@ async def _main_async(name: str, interval_seconds: float) -> None:
     logger.info("bootstrap_worker_stopped", worker=name)
 
 
-def run_worker(name: str, interval_seconds: float | None = None) -> None:
+def run_worker(
+    name: str, interval_seconds: float | None = None, metrics_port: int | None = None
+) -> None:
     if interval_seconds is None:
         interval_seconds = _parse_interval()
 
     configure_logging(enable_sensitive=False)
+    if metrics_port is not None:
+        start_http_server(metrics_port)
     asyncio.run(_main_async(name=name, interval_seconds=interval_seconds))

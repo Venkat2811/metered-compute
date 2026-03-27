@@ -212,10 +212,15 @@ def test_create_app_uses_lifespan_and_validation_handler(monkeypatch: pytest.Mon
             headers={"Authorization": "Bearer token"},
             json={"x": "bad", "y": 2},
         )
+        metrics = client.get("/metrics")
 
     assert health.status_code == 200
     assert health.json()["solution"] == "3_solution"
     assert bad_request.status_code == 400
     assert bad_request.json()["error"]["code"] == "BAD_REQUEST"
+    assert metrics.status_code == 200
+    assert "http_requests_total" in metrics.text
+    assert 'path="/health"' in metrics.text
+    assert 'path="/v1/task"' in metrics.text
     assert build_calls == 1
     assert close_calls == [built_runtime]

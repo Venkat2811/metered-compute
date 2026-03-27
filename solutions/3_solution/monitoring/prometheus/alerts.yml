@@ -1,1 +1,75 @@
-groups: []
+groups:
+  - name: solution3-core-alerts
+    rules:
+      - alert: Solution3ApiUnavailable
+        expr: up{job="api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Solution3 API target is down"
+          description: "Prometheus cannot scrape Solution3 API metrics for over 1 minute."
+
+      - alert: Solution3WorkerUnavailable
+        expr: up{job="worker"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Solution3 worker target is down"
+          description: "Prometheus cannot scrape worker metrics for over 2 minutes."
+
+      - alert: Solution3ProjectorUnavailable
+        expr: up{job="projector"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Solution3 projector target is down"
+          description: "Projection worker metrics are unavailable for over 2 minutes."
+
+      - alert: Solution3DispatcherUnavailable
+        expr: up{job="dispatcher"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Solution3 dispatcher target is down"
+          description: "Dispatcher metrics are unavailable for over 2 minutes."
+
+      - alert: Solution3WebhookWorkerUnavailable
+        expr: up{job="webhook-worker"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Solution3 webhook worker target is down"
+          description: "Webhook worker metrics are unavailable for over 2 minutes."
+
+      - alert: Solution3Api5xxSpike
+        expr: |
+          sum(rate(http_requests_total{path="/v1/task",status=~"5.."}[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Solution3 submit endpoint has elevated 5xx rate"
+          description: "Submit endpoint 5xx rate exceeded 0.05 req/s over 5 minutes."
+
+      - alert: Solution3OutboxLagHigh
+        expr: outbox_publish_lag_seconds > 30
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Solution3 outbox lag is elevated"
+          description: "Oldest unpublished outbox event has remained older than 30 seconds for 5 minutes."
+
+      - alert: Solution3WebhookDeadLetters
+        expr: increase(webhook_deliveries_total{result="dead_letter"}[15m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Solution3 webhook dead letters detected"
+          description: "At least one webhook delivery exhausted retries in the last 15 minutes."

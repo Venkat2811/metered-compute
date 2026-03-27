@@ -484,3 +484,99 @@ def test_main_configures_logging_and_runs_worker_loop(monkeypatch: pytest.Monkey
 
     assert configure_calls == [False]
     assert loop_calls == [(2.5, 300)]
+
+
+def test_main_loop_starts_metrics_exporter_and_closes_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    metrics_ports: list[int] = []
+    stop_handlers: list[object] = []
+
+    class FakeRedisRuntime:
+        def __init__(self) -> None:
+            self.ping_calls = 0
+            self.close_calls = 0
+
+        async def ping(self) -> None:
+            self.ping_calls += 1
+
+        async def close(self) -> None:
+            self.close_calls += 1
+
+    class FakePool:
+        def __init__(self) -> None:
+            self.close_calls = 0
+
+        async def close(self) -> None:
+            self.close_calls += 1
+
+    class FakeConnection:
+        def __init__(self) -> None:
+            self.close_calls = 0
+
+        def close(self) -> None:
+            self.close_calls += 1
+
+    class RuntimeChannel(FakeQueueChannel):
+        def basic_qos(self, *, prefetch_count: int) -> None:
+            assert prefetch_count == 1
+
+        def start_consuming(self) -> None:
+            for handler in stop_handlers:
+                assert callable(handler)
+                handler(None, None)
+
+        def stop_consuming(self) -> None:
+            return None
+
+    fake_pool = FakePool()
+    fake_redis = FakeRedisRuntime()
+    fake_connection = FakeConnection()
+    fake_channel = RuntimeChannel()
+
+    async def fake_create_pool(*, dsn: str) -> FakePool:
+        assert dsn == "postgresql://db"
+        return fake_pool
+
+    monkeypatch.setattr(
+        worker,
+        "load_settings",
+        lambda: SimpleNamespace(
+            postgres_dsn="postgresql://db",
+            redis_url="redis://redis:6379/0",
+            rabbitmq_url="amqp://guest:guest@rabbitmq:5672/",
+            rabbitmq_queue_cold="cold",
+            worker_metrics_port=9100,
+            tigerbeetle_cluster_id=0,
+            tigerbeetle_endpoint="tigerbeetle:3000",
+            tigerbeetle_ledger_id=1,
+            tigerbeetle_revenue_account_id=1,
+            tigerbeetle_escrow_account_id=2,
+            tigerbeetle_pending_transfer_timeout_seconds=600,
+        ),
+    )
+    monkeypatch.setattr("solution3.workers.worker.asyncpg.create_pool", fake_create_pool)
+    monkeypatch.setattr("solution3.workers.worker.Redis.from_url", lambda *_, **__: fake_redis)
+    monkeypatch.setattr(worker, "start_http_server", metrics_ports.append)
+    monkeypatch.setattr(worker, "_build_billing", lambda _settings: FakeBilling())
+    monkeypatch.setattr(
+        worker,
+        "build_rabbitmq_channel",
+        lambda _url: (
+            cast(worker.WorkerQueueConnection, fake_connection),
+            cast(worker.WorkerQueueChannel, fake_channel),
+        ),
+    )
+    monkeypatch.setattr(
+        "solution3.workers.worker.signal.signal",
+        lambda _sig, handler: stop_handlers.append(handler),
+    )
+    monkeypatch.setattr("solution3.workers.worker.time.sleep", lambda _seconds: None)
+
+    worker._main_loop(interval_seconds=0.1, result_ttl_seconds=300)
+
+    assert metrics_ports == [9100]
+    assert fake_redis.ping_calls == 1
+    assert fake_redis.close_calls == 1
+    assert fake_pool.close_calls == 1
+    assert fake_connection.close_calls == 1

@@ -1,20 +1,23 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
+import time
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
 import asyncpg
 import tigerbeetle as tb
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from redis.asyncio import Redis
 
 from solution3.api.admin_routes import register_admin_routes
 from solution3.api.auth_routes import register_auth_routes
 from solution3.api.error_responses import api_error_response
+from solution3.api.paths import METRICS_PATH
 from solution3.api.task_read_routes import register_task_read_routes
 from solution3.api.task_write_routes import register_task_write_routes
 from solution3.core.runtime import RuntimeState
@@ -22,6 +25,7 @@ from solution3.core.settings import AppSettings, load_settings
 from solution3.db.migrate import run_migrations
 from solution3.db.repository import list_active_users_with_initial_credits
 from solution3.models.schemas import HealthResponse, ReadyResponse
+from solution3.observability.metrics import HTTP_REQUEST_DURATION_SECONDS, HTTP_REQUESTS_TOTAL
 from solution3.services.billing import TigerBeetleBilling, resolve_tigerbeetle_addresses
 from solution3.utils.logging import configure_logging, get_logger
 
@@ -52,6 +56,18 @@ def _register_system_routes(app: FastAPI) -> None:
             ready=True,
             deps=["postgres", "redis", "rabbitmq", "hydra", "redpanda", "tigerbeetle"],
         )
+
+    @app.get(METRICS_PATH, tags=["system"])
+    def metrics() -> Response:
+        return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+def _canonical_path_label(request: Request) -> str:
+    route = request.scope.get("route")
+    route_path = getattr(route, "path", None)
+    if isinstance(route_path, str) and route_path:
+        return route_path
+    return request.url.path
 
 
 async def _build_runtime(*, settings: AppSettings) -> RuntimeState:
@@ -109,6 +125,28 @@ def create_app(*, initialize_runtime: bool = False) -> FastAPI:
             logger.info("solution3_runtime_stopped", app_name=settings.app_name)
 
     app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
+
+    @app.middleware("http")
+    async def _metrics_middleware(
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
+        start = time.perf_counter()
+        method = request.method
+        try:
+            response = await call_next(request)
+        except Exception:
+            path = _canonical_path_label(request)
+            duration = time.perf_counter() - start
+            HTTP_REQUESTS_TOTAL.labels(method=method, path=path, status="500").inc()
+            HTTP_REQUEST_DURATION_SECONDS.labels(method=method, path=path).observe(duration)
+            raise
+
+        path = _canonical_path_label(request)
+        duration = time.perf_counter() - start
+        HTTP_REQUESTS_TOTAL.labels(method=method, path=path, status=str(response.status_code)).inc()
+        HTTP_REQUEST_DURATION_SECONDS.labels(method=method, path=path).observe(duration)
+        return response
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(

@@ -1,6 +1,6 @@
 # 3_solution: Financial Core
 
-In-progress implementation for the TigerBeetle + Redpanda + CQRS solution track.
+Implemented TigerBeetle + Redpanda + CQRS solution track.
 
 Compose project name: `mc-solution3` (set in `compose.yaml`).
 
@@ -59,7 +59,7 @@ Current proof scope is intentionally narrower than the final RFC scope:
 
 ## Current Status
 
-This directory has completed `P0-005` and has the first reviewer-tooling slice of `P0-006` landed. The projector, rebuild tooling, TigerBeetle-aware reconciler, webhook delivery, deterministic scenario harness, load harness, and capacity model are all real, and `make prove` now includes the scenario run.
+This directory has completed `P0-006`. The projector, rebuild tooling, TigerBeetle-aware reconciler, webhook delivery, Prometheus metrics, Grafana dashboard, alert rules, deterministic scenario harness, load harness, and capacity model are all real, and `make prove` verifies them from a clean state.
 
 What is already real:
 
@@ -88,11 +88,13 @@ What is already real:
 - isolated test suite in `tests_bootstrap/` covering unit, integration, e2e, and fault slices for the implemented scope
 - deterministic `scripts/run_scenarios.py` harness that writes JSON evidence and exercises the shipped HTTP flows against a live stack
 - `scripts/load_harness.py` plus `scripts/capacity_model.py` for lightweight measured throughput and derived monthly projections
+- Prometheus metrics for API, worker, dispatcher, outbox relay, projector, reconciler, webhook worker, and watchdog processes
+- non-placeholder Grafana dashboard plus alert rules for the shipped runtime signals
 
 What is not implemented yet:
 
-- Prometheus metrics, non-placeholder Grafana dashboards, and alert rules for the Solution 3 runtime
 - successful admin top-up path
+- optional RFC extras: OTel/Tempo runtime instrumentation, OpenSearch, and ClickHouse analytics
 
 Those land in the remaining `P0-006` slice. The kanban reflects the real ship order.
 
@@ -144,6 +146,8 @@ src/solution3
 |-- models
 |   |-- domain.py
 |   `-- schemas.py
+|-- observability
+|   `-- metrics.py
 |-- services
 |   `-- auth.py
 |-- utils

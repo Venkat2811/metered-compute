@@ -6,10 +6,10 @@ Finish Sol 3 with production-observable signals and full proof posture.
 
 Acceptance criteria:
 
-- [ ]  Prometheus metrics + Grafana dashboards cover core control plane and worker flows.
+- [x]  Prometheus metrics + Grafana dashboards cover core control plane and worker flows.
 - [x]  Scenario harness covers all critical flows and is deterministic.
 - [x]  `make prove` executes all intended bootstrap test tiers and captures evidence.
-- [x]  README claims for the current bootstrap scope match code behavior.
+- [x]  README claims and solution matrix notes match current code behavior.
 
 TDD order:
 
@@ -20,22 +20,21 @@ TDD order:
 
 Checklist:
 
-- [ ] Add `src/solution3/observability/metrics.py` and `src/solution3/observability/logging.py`.
-- [ ] Add Prometheus metric suite:
+- [x] Add `src/solution3/observability/metrics.py`.
+- [x] Add Prometheus metric suite:
   - submit attempts, success/failure
-  - queue depths/lags, worker active
-  - TB reserve/post/void timings
-  - reconciler and projector lag/errors.
-- [ ] Add/adjust Grafana dashboards and alert rules.
-- [ ] Add script updates:
+  - dispatch / outbox / projector / webhook / reconciler signals
+  - worker execution and terminal outcomes
+- [x] Add/adjust Grafana dashboards and alert rules.
+- [x] Add script updates:
   - [x] `scripts/run_scenarios.py`
   - [x] load harness entrypoint via `scripts/load_harness.py`
   - [x] `scripts/capacity_model.py`
   - [x] `scripts/full_stack_check.sh` now runs the scenario harness after the compose-backed test tiers
 - [x] Add tests for scenario loader and output shape.
 - [x] Add evidence directory convention and timestamps for prove runs.
-- [x] Align `README.md` to the current shipped bootstrap scope.
-- [ ] Align solution matrix row and RFC status notes.
+- [x] Align `README.md` to the current shipped Solution 3 scope.
+- [x] Align solution matrix row and status notes.
 
 Completion criteria:
 

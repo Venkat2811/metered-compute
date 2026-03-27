@@ -320,6 +320,7 @@ async def test_main_async_publishes_batches_and_closes_resources(
     stop_event: asyncio.Event | None = None
     closed = {"db": 0, "producer": 0}
     relay_calls: list[int] = []
+    metrics_ports: list[int] = []
 
     class FakePool:
         async def close(self) -> None:
@@ -355,9 +356,11 @@ async def test_main_async_publishes_batches_and_closes_resources(
         lambda: SimpleNamespace(
             postgres_dsn="postgresql://db",
             redpanda_bootstrap_servers="redpanda:9092",
+            outbox_relay_metrics_port=9200,
         ),
     )
     monkeypatch.setattr("solution3.workers.outbox_relay.asyncpg.create_pool", fake_create_pool)
+    monkeypatch.setattr(outbox_relay, "start_http_server", metrics_ports.append)
     monkeypatch.setattr(outbox_relay, "build_redpanda_producer", fake_build_redpanda_producer)
     monkeypatch.setattr(outbox_relay, "_install_stop_handlers", fake_install_stop_handlers)
     monkeypatch.setattr(outbox_relay, "relay_once", fake_relay_once)
@@ -365,6 +368,7 @@ async def test_main_async_publishes_batches_and_closes_resources(
     await outbox_relay._main_async(interval_seconds=0.1, batch_size=25)
 
     assert relay_calls == [25]
+    assert metrics_ports == [9200]
     assert closed == {"db": 1, "producer": 1}
 
 
@@ -377,6 +381,7 @@ async def test_main_async_logs_iteration_failures_and_waits(
     relay_attempts = 0
     wait_calls: list[float] = []
     logged_errors: list[str] = []
+    metrics_ports: list[int] = []
 
     class FakePool:
         async def close(self) -> None:
@@ -420,9 +425,11 @@ async def test_main_async_logs_iteration_failures_and_waits(
         lambda: SimpleNamespace(
             postgres_dsn="postgresql://db",
             redpanda_bootstrap_servers="redpanda:9092",
+            outbox_relay_metrics_port=9200,
         ),
     )
     monkeypatch.setattr("solution3.workers.outbox_relay.asyncpg.create_pool", fake_create_pool)
+    monkeypatch.setattr(outbox_relay, "start_http_server", metrics_ports.append)
     monkeypatch.setattr(outbox_relay, "build_redpanda_producer", fake_build_redpanda_producer)
     monkeypatch.setattr(outbox_relay, "_install_stop_handlers", fake_install_stop_handlers)
     monkeypatch.setattr(outbox_relay, "relay_once", fake_relay_once)
@@ -432,6 +439,7 @@ async def test_main_async_logs_iteration_failures_and_waits(
     await outbox_relay._main_async(interval_seconds=0.25, batch_size=10)
 
     assert relay_attempts == 1
+    assert metrics_ports == [9200]
     assert wait_calls == [0.25]
     assert logged_errors == ["relay failed"]
     assert closed == {"db": 1, "producer": 1}

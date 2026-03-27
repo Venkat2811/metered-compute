@@ -383,6 +383,7 @@ def test_main_loop_rebuilds_resources_after_iteration_failure(
     channels = [FakeChannel(), FakeChannel()]
     stop_handlers: list[object] = []
     dispatch_calls = 0
+    metrics_ports: list[int] = []
 
     def fake_open_resources(
         _settings: object,
@@ -413,15 +414,21 @@ def test_main_loop_rebuilds_resources_after_iteration_failure(
     def fake_signal(_sig: int, handler: object) -> None:
         stop_handlers.append(handler)
 
-    monkeypatch.setattr(dispatcher, "load_settings", lambda: SimpleNamespace())
+    monkeypatch.setattr(
+        dispatcher,
+        "load_settings",
+        lambda: SimpleNamespace(dispatcher_metrics_port=9600),
+    )
     monkeypatch.setattr(dispatcher, "open_dispatch_resources", fake_open_resources)
     monkeypatch.setattr(dispatcher, "declare_dispatch_topology", fake_declare)
     monkeypatch.setattr(dispatcher, "dispatch_polled_messages", fake_dispatch)
+    monkeypatch.setattr(dispatcher, "start_http_server", metrics_ports.append)
     monkeypatch.setattr("solution3.workers.dispatcher.signal.signal", fake_signal)
     monkeypatch.setattr("solution3.workers.dispatcher.time.sleep", lambda _seconds: None)
 
     dispatcher._main_loop(interval_seconds=0.1, poll_timeout_ms=250, max_records=10)
 
+    assert metrics_ports == [9600]
     assert opened == [0, 1]
     assert declared_channels == []
     assert connections[0].closed is True

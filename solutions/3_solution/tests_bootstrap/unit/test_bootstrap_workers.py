@@ -38,6 +38,7 @@ def test_run_worker_configures_logging_and_runs_async_main(
 ) -> None:
     configure_calls: list[bool] = []
     async_calls: list[tuple[str, float]] = []
+    metrics_ports: list[int] = []
 
     async def fake_main_async(*, name: str, interval_seconds: float) -> None:
         async_calls.append((name, interval_seconds))
@@ -53,11 +54,13 @@ def test_run_worker_configures_logging_and_runs_async_main(
     monkeypatch.setattr(_bootstrap_worker, "_parse_interval", lambda: 4.0)
     monkeypatch.setattr(_bootstrap_worker, "_main_async", fake_main_async)
     monkeypatch.setattr(_bootstrap_worker, "configure_logging", fake_configure_logging)
+    monkeypatch.setattr(_bootstrap_worker, "start_http_server", metrics_ports.append)
     monkeypatch.setattr("solution3.workers._bootstrap_worker.asyncio.run", fake_asyncio_run)
 
-    _bootstrap_worker.run_worker("solution3_worker")
+    _bootstrap_worker.run_worker("solution3_worker", metrics_port=9700)
 
     assert configure_calls == [False]
+    assert metrics_ports == [9700]
     assert async_calls == [("solution3_worker", 4.0)]
 
 
@@ -111,9 +114,16 @@ def test_worker_entrypoints_delegate_to_run_worker(
     expected_name: str,
 ) -> None:
     module = importlib.import_module(module_name)
-    calls: list[str] = []
-    monkeypatch.setattr(module, "run_worker", lambda name: calls.append(name))
+    calls: list[tuple[str, int]] = []
+    monkeypatch.setattr(
+        module, "load_settings", lambda: SimpleNamespace(watchdog_metrics_port=9700)
+    )
+    monkeypatch.setattr(
+        module,
+        "run_worker",
+        lambda name, metrics_port: calls.append((name, metrics_port)),
+    )
 
     module.main()
 
-    assert calls == [expected_name]
+    assert calls == [(expected_name, 9700)]

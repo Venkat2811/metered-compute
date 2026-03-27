@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+METRICS_PATH = "/metrics"
 V1_OAUTH_TOKEN_PATH = "/v1/oauth/token"  # nosec B105 - route path, not a credential
 V1_TASK_SUBMIT_PATH = "/v1/task"
 V1_TASK_POLL_PATH = "/v1/poll"

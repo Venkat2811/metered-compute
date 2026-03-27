@@ -14,12 +14,12 @@ Priority order used across all RFCs:
 - `0_solution`: Pragmatic Baseline - Celery + Redis + Postgres (assignment stack, done right)
 - `1_solution`: Redis-Native Engine - JWT + Redis Streams + Lua atomic pipeline
 - `2_solution`: Service-Grade Platform - CQRS + RabbitMQ SLA routing + reservation billing
-- `3_solution`: Financial Core - TigerBeetle + Redpanda + RabbitMQ hot/cold dispatch + CQRS projections (RFC only)
+- `3_solution`: Financial Core - TigerBeetle + Redpanda + RabbitMQ hot/cold dispatch + CQRS projections
 - `4_solution`: Production Launch - Sol 1 hot path + Sol 2 outbox (RFC only)
 - `5_solution`: TB + Restate Showcase - TigerBeetle double-entry billing + Restate durable execution
 
-Solutions 0-2 are independently excellent architectural approaches with different tradeoff profiles, each implemented with full test suites and demo scripts.
-Solutions 3 and 4 are RFC-only designs that extend the architectural exploration without implementation.
+Solutions 0-3 are independently excellent architectural approaches with different tradeoff profiles, each implemented with full test suites and demo scripts.
+Solution 4 is the remaining RFC-only design that extends the architectural exploration without implementation.
 Solution 4 is a launch decision: the best of Sol 1 (speed) + Sol 2 (correctness), minimizing infrastructure for a 2-week production ship.
 Solution 5 is a minimal showcase (~700 LOC) proving TigerBeetle + Restate replace thousands of lines of infrastructure code.
 
@@ -41,26 +41,26 @@ Described in RFC for later tracks: alertmanager rules, OpenSearch, ClickHouse.
 | 0        | structlog + Prometheus + Grafana                               | Alertmanager rules                                   |
 | 1        | structlog + Prometheus + Grafana + optional OTel+Tempo profile | Alertmanager                                         |
 | 2        | structlog + Prometheus + Grafana                               | Alertmanager, OTel+Tempo, OpenSearch                |
-| 3 (RFC)  | -                                                               | Alertmanager, OTel+Tempo, OpenSearch, ClickHouse    |
+| 3        | structlog + Prometheus + Grafana                               | OTel+Tempo, OpenSearch, ClickHouse                  |
 | 4 (RFC)  | -                                                               | Sol 1 observability + outbox metrics                 |
 | 5        | structlog + Prometheus + Grafana                               | -                                                    |
 
 ## What each solution ships as code vs. describes in RFC
 
-| Capability                       | 0      | 1      | 2      | 3 (RFC only)     | 4 (RFC only) | 5      |
+| Capability                       | 0      | 1      | 2      | 3                | 4 (RFC only) | 5      |
 | -------------------------------- | ------ | ------ | ------ | ---------------- | ------------ | ------ |
-| Task submit/poll/cancel          | code   | code   | code   | RFC              | RFC          | code   |
-| Credit check + deduction         | code   | code   | code   | RFC              | RFC          | code   |
-| Auth (API key / JWT)             | code   | code   | code   | RFC              | RFC          | code   |
-| Admin credits                    | code   | code   | code   | RFC              | RFC          | code   |
-| Concurrency + idempotency        | code   | code   | code   | RFC              | RFC          | code   |
-| Demo script                      | code   | code   | code   | -                | -            | code   |
-| Unit + integration tests         | code   | code   | code   | -                | -            | code   |
-| Scenario harness (12-13 scenarios) | code | code   | code   | -                | -            | code   |
-| Sustained load test (100 RPS)      | code | code   | code   | -                | -            | code   |
-| Fault tests (degradation proof)  | code   | code   | code   | -                | -            | -      |
-| structlog + Prometheus + Grafana | code   | code   | code   | RFC              | RFC          | code   |
-| Alertmanager rules               | config | config | config | RFC              | RFC          | -      |
+| Task submit/poll/cancel          | code   | code   | code   | code             | RFC          | code   |
+| Credit check + deduction         | code   | code   | code   | code             | RFC          | code   |
+| Auth (API key / JWT)             | code   | code   | code   | code             | RFC          | code   |
+| Admin credits                    | code   | code   | code   | partial          | RFC          | code   |
+| Concurrency + idempotency        | code   | code   | code   | code             | RFC          | code   |
+| Demo script                      | code   | code   | code   | code             | -            | code   |
+| Unit + integration tests         | code   | code   | code   | code             | -            | code   |
+| Scenario harness (12-13 scenarios) | code | code   | code   | code             | -            | code   |
+| Sustained load test (100 RPS)      | code | code   | code   | code             | -            | code   |
+| Fault tests (degradation proof)  | code   | code   | code   | code             | -            | -      |
+| structlog + Prometheus + Grafana | code   | code   | code   | code             | RFC          | code   |
+| Alertmanager rules               | config | config | config | config           | RFC          | -      |
 | OTel + Tempo                     | -      | optional profile | RFC    | RFC              | RFC          | -      |
 | OpenSearch                       | -      | -      | RFC    | RFC              | -            | -      |
 | ClickHouse OLAP                  | -      | -      | -      | RFC              | -            | -      |
@@ -90,17 +90,17 @@ CQRS separation (solutions 2-3) is in the code (separate routers, separate schem
 | 0        | ~7    | api, worker, reaper                                                                    | redis, postgres                                  | prometheus, grafana |
 | 1        | ~9    | api, hydra, worker, reaper, webhook-dispatcher                                         | redis, postgres                                  | prometheus, grafana |
 | 2        | ~12   | api, hydra, worker, outbox-relay, projector, watchdog, webhook-worker                  | redis, postgres, rabbitmq                        | prometheus, grafana |
-| 3 (RFC)  | ~15   | api, hydra, dispatcher, worker(s), outbox-relay, projector, reconciler, webhook-worker | redis, postgres, tigerbeetle, redpanda, rabbitmq | prometheus, grafana |
+| 3        | ~15   | api, hydra, dispatcher, worker(s), outbox-relay, projector, reconciler, webhook-worker | redis, postgres, tigerbeetle, redpanda, rabbitmq | prometheus, grafana |
 | 4 (RFC)  | ~10   | api, hydra, worker, outbox-relay, reaper, webhook-dispatcher                           | redis, postgres                                  | prometheus, grafana |
 | 5        | ~8    | api                                                                                    | redis, postgres, tigerbeetle, tb-init, restate   | prometheus, grafana |
 
-Solutions 3 and 4 are RFC only (not implemented). Sol 3 with ClickHouse profile would be ~17 containers.
-Solution 4 is a launch blueprint that picks Sol 1 hot path + Sol 2 outbox.
+Solution 3 is implemented without the optional analytics profile. With ClickHouse enabled later, Sol 3 would be ~17 containers.
+Solution 4 is the remaining RFC-only launch blueprint that picks Sol 1 hot path + Sol 2 outbox.
 Solution 5 has 8 containers total — same as Sol 0, but with TigerBeetle for billing and Restate for durable execution.
 
 ## Full comparison
 
-| Concern               | 0 - Baseline                          | 1 - Redis-Native                                                                 | 2 - Service-Grade              | 3 - Financial Core (RFC)                      | 4 - Production Launch (RFC)                     | 5 - TB + Restate                              |
+| Concern               | 0 - Baseline                          | 1 - Redis-Native                                                                 | 2 - Service-Grade              | 3 - Financial Core                            | 4 - Production Launch (RFC)                     | 5 - TB + Restate                              |
 | --------------------- | ------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------ | --------------------------------------------- | ----------------------------------------------- | ---------------------------------------------- |
 | **Auth**              | API key + Redis cache                 | JWT + OAuth                                                                      | JWT + OAuth                    | JWT + OAuth                                   | JWT + OAuth (from Sol 1)                        | API key + Redis cache                          |
 | **Queue**             | Celery + Redis                        | Redis Streams                                                                    | RabbitMQ (SLA routing)         | Redpanda + RabbitMQ dispatch                  | Redis Streams (from Sol 1)                      | Restate (durable execution)                    |

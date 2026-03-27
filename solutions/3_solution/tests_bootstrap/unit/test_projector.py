@@ -324,6 +324,7 @@ async def test_main_async_processes_batch_and_closes_resources(
     events: list[tuple[str, dict[str, object]]] = []
     stop_event = asyncio.Event()
     consumer = FakeConsumer()
+    metrics_ports: list[int] = []
 
     class RuntimeRedis(FakeRedis):
         async def ping(self) -> bool:
@@ -357,9 +358,11 @@ async def test_main_async_processes_batch_and_closes_resources(
         lambda: SimpleNamespace(
             postgres_dsn="postgresql://postgres:postgres@postgres:5432/postgres",
             redis_url="redis://redis:6379/0",
+            projector_metrics_port=9300,
         ),
     )
     monkeypatch.setattr("solution3.workers.projector.asyncpg.create_pool", fake_create_pool)
+    monkeypatch.setattr(projector, "start_http_server", metrics_ports.append)
     monkeypatch.setattr(
         "solution3.workers.projector.Redis.from_url",
         lambda *_, **__: RuntimeRedis(),
@@ -380,6 +383,7 @@ async def test_main_async_processes_batch_and_closes_resources(
         "projector_started",
         {"interval_seconds": 0.1, "poll_timeout_ms": 250, "max_records": 10},
     ) in events
+    assert metrics_ports == [9300]
     assert ("projector_batch_projected", {"count": 2}) in events
     assert ("redis_closed", {}) in events
     assert ("pool_closed", {}) in events
@@ -394,6 +398,7 @@ async def test_main_async_logs_iteration_failure_then_waits_for_shutdown(
     stop_event = asyncio.Event()
     consumer = FakeConsumer()
     wait_calls: list[float] = []
+    metrics_ports: list[int] = []
 
     class RuntimeRedis(FakeRedis):
         async def ping(self) -> bool:
@@ -431,9 +436,11 @@ async def test_main_async_logs_iteration_failure_then_waits_for_shutdown(
         lambda: SimpleNamespace(
             postgres_dsn="postgresql://postgres:postgres@postgres:5432/postgres",
             redis_url="redis://redis:6379/0",
+            projector_metrics_port=9300,
         ),
     )
     monkeypatch.setattr("solution3.workers.projector.asyncpg.create_pool", fake_create_pool)
+    monkeypatch.setattr(projector, "start_http_server", metrics_ports.append)
     monkeypatch.setattr(
         "solution3.workers.projector.Redis.from_url",
         lambda *_, **__: RuntimeRedis(),
@@ -453,6 +460,7 @@ async def test_main_async_logs_iteration_failure_then_waits_for_shutdown(
 
     assert "projector_iteration_failed" in events
     assert "projector_stopped" in events
+    assert metrics_ports == [9300]
     assert "redis_closed" in events
     assert "pool_closed" in events
     assert wait_calls == [0.25]

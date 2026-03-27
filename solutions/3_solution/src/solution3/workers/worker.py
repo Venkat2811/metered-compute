@@ -15,6 +15,7 @@ from uuid import UUID
 import asyncpg
 import pika
 import tigerbeetle as tb
+from prometheus_client import start_http_server
 from redis.asyncio import Redis
 
 from solution3.constants import (
@@ -28,6 +29,11 @@ from solution3.constants import (
 from solution3.core.settings import load_settings
 from solution3.db.repository import finalize_task_command, update_task_running
 from solution3.models.domain import TaskCommand
+from solution3.observability.metrics import (
+    TASK_COMPLETIONS_TOTAL,
+    TASK_DURATION_SECONDS,
+    TASKS_EXECUTED_TOTAL,
+)
 from solution3.services.billing import TigerBeetleBilling, resolve_tigerbeetle_addresses
 from solution3.utils.logging import configure_logging, get_logger
 
@@ -316,6 +322,7 @@ async def handle_task_completion(
             mapping["error"] = error
         await redis_client.hset(_task_state_key(task.task_id), mapping=mapping)
         await redis_client.expire(_task_state_key(task.task_id), result_ttl_seconds)
+    TASK_COMPLETIONS_TOTAL.labels(status=status.value).inc()
     return True
 
 
@@ -337,9 +344,13 @@ async def process_task_event(
     if not started:
         return True
 
+    started_at = time.perf_counter()
     try:
         result = await runtime.execute(task)
     except Exception as exc:
+        duration = time.perf_counter() - started_at
+        TASK_DURATION_SECONDS.labels(model_class=task.model_class.value).observe(duration)
+        TASKS_EXECUTED_TOTAL.labels(status=TaskStatus.FAILED.value).inc()
         return await handle_task_completion(
             db_pool=db_pool,
             redis_client=redis_client,
@@ -350,6 +361,9 @@ async def process_task_event(
             error=str(exc),
         )
 
+    duration = time.perf_counter() - started_at
+    TASK_DURATION_SECONDS.labels(model_class=task.model_class.value).observe(duration)
+    TASKS_EXECUTED_TOTAL.labels(status=TaskStatus.COMPLETED.value).inc()
     return await handle_task_completion(
         db_pool=db_pool,
         redis_client=redis_client,
@@ -437,6 +451,7 @@ def _build_billing(settings: Any) -> TigerBeetleBilling:
 
 def _main_loop(*, interval_seconds: float, result_ttl_seconds: int) -> None:
     settings = load_settings()
+    start_http_server(settings.worker_metrics_port)
     stop_requested = False
     channel: WorkerQueueChannel | None = None
 

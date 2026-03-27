@@ -76,6 +76,13 @@ class AppSettings(BaseSettings):
     app_env: str = "dev"
     app_host: str = "0.0.0.0"
     app_port: int = 8000
+    worker_metrics_port: int = 9100
+    outbox_relay_metrics_port: int = 9200
+    projector_metrics_port: int = 9300
+    reconciler_metrics_port: int = 9400
+    webhook_metrics_port: int = 9500
+    dispatcher_metrics_port: int = 9600
+    watchdog_metrics_port: int = 9700
 
     postgres_dsn: PostgresDsn
     redis_url: RedisDsn

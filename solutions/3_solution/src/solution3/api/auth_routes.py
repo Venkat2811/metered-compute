@@ -5,6 +5,7 @@ from fastapi import APIRouter, Request
 from solution3.api.error_responses import api_error_response
 from solution3.api.paths import V1_OAUTH_TOKEN_PATH
 from solution3.models.schemas import OAuthTokenRequest, OAuthTokenResponse
+from solution3.observability.metrics import TOKEN_ISSUANCE_TOTAL
 from solution3.services.auth import (
     exchange_client_credentials_for_token as _exchange_client_credentials_for_token,
 )
@@ -25,6 +26,7 @@ def register_auth_routes(router: APIRouter) -> None:
         if payload.api_key and not await _validate_oauth_api_key(
             api_key=payload.api_key, request=request
         ):
+            TOKEN_ISSUANCE_TOTAL.labels(result="unauthorized").inc()
             return api_error_response(
                 status_code=401,
                 code="UNAUTHORIZED",
@@ -41,4 +43,5 @@ def register_auth_routes(router: APIRouter) -> None:
             scope=payload.scope or DEFAULT_SCOPE,
             request=request,
         )
+        TOKEN_ISSUANCE_TOTAL.labels(result="issued").inc()
         return OAuthTokenResponse(**token_payload)

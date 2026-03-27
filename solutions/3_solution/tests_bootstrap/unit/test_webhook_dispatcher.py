@@ -551,6 +551,7 @@ async def test_main_async_processes_batch_and_closes_resources(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     events: list[tuple[str, dict[str, object]]] = []
+    metrics_ports: list[int] = []
 
     class FakePool:
         async def close(self) -> None:
@@ -585,10 +586,15 @@ async def test_main_async_processes_batch_and_closes_resources(
         assert received_stop_event is stop_event
 
     monkeypatch.setattr(webhook_dispatcher, "logger", FakeLogger())
-    monkeypatch.setattr(webhook_dispatcher, "load_settings", lambda: _settings_with_postgres())
+    monkeypatch.setattr(
+        webhook_dispatcher,
+        "load_settings",
+        lambda: _settings_with_postgres(webhook_metrics_port=9500),
+    )
     monkeypatch.setattr(
         "solution3.workers.webhook_dispatcher.asyncpg.create_pool", fake_create_pool
     )
+    monkeypatch.setattr(webhook_dispatcher, "start_http_server", metrics_ports.append)
     monkeypatch.setattr(
         "solution3.workers.webhook_dispatcher.httpx.AsyncClient",
         lambda timeout: FakeAsyncClient(),
@@ -615,6 +621,7 @@ async def test_main_async_processes_batch_and_closes_resources(
         "webhook_worker_started",
         {"interval_seconds": 0.1, "poll_timeout_ms": 250, "max_records": 10, "max_attempts": 3},
     ) in events
+    assert metrics_ports == [9500]
     assert ("webhook_worker_batch_processed", {"count": 2}) in events
     assert ("http_closed", {}) in events
     assert ("pool_closed", {}) in events
@@ -626,6 +633,7 @@ async def test_main_async_logs_iteration_failure_and_waits_for_shutdown(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     events: list[str] = []
+    metrics_ports: list[int] = []
 
     class FakePool:
         async def close(self) -> None:
@@ -661,10 +669,15 @@ async def test_main_async_logs_iteration_failure_and_waits_for_shutdown(
         return await awaitable
 
     monkeypatch.setattr(webhook_dispatcher, "logger", FakeLogger())
-    monkeypatch.setattr(webhook_dispatcher, "load_settings", lambda: _settings_with_postgres())
+    monkeypatch.setattr(
+        webhook_dispatcher,
+        "load_settings",
+        lambda: _settings_with_postgres(webhook_metrics_port=9500),
+    )
     monkeypatch.setattr(
         "solution3.workers.webhook_dispatcher.asyncpg.create_pool", fake_create_pool
     )
+    monkeypatch.setattr(webhook_dispatcher, "start_http_server", metrics_ports.append)
     monkeypatch.setattr(
         "solution3.workers.webhook_dispatcher.httpx.AsyncClient",
         lambda timeout: FakeAsyncClient(),
@@ -689,6 +702,7 @@ async def test_main_async_logs_iteration_failure_and_waits_for_shutdown(
     )
 
     assert "webhook_worker_iteration_failed" in events
+    assert metrics_ports == [9500]
     assert wait_calls == [0.25]
     assert "webhook_worker_stopped" in events
     assert "http_closed" in events
@@ -750,10 +764,11 @@ def test_main_configures_logging_and_runs_async_worker(monkeypatch: pytest.Monke
     assert async_calls == [(2.5, 200, 5, 4, 0.2, 6.0)]
 
 
-def _settings_with_postgres() -> Any:
+def _settings_with_postgres(**overrides: object) -> Any:
     return SimpleNamespace(
         **{
             **_settings().__dict__,
             "postgres_dsn": "postgresql://postgres:postgres@postgres:5432/postgres",
+            **overrides,
         }
     )

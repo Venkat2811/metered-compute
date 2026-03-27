@@ -26,6 +26,7 @@ from solution3.db.repository import cancel_task_command, get_task_command
 from solution3.db.repository import submit_task_command as _submit_task_command
 from solution3.models.domain import AuthUser, TaskCommand
 from solution3.models.schemas import CancelTaskResponse, SubmitTaskRequest, SubmitTaskResponse
+from solution3.observability.metrics import TASK_COMPLETIONS_TOTAL, TASK_SUBMISSIONS_TOTAL
 from solution3.services.auth import (
     require_authenticated_user,
     require_scopes,
@@ -151,12 +152,14 @@ def register_task_write_routes(router: APIRouter) -> None:
         require_scopes(current_user=current_user, required_scopes=frozenset({"task:submit"}))
         runtime = runtime_state_from_request(request)
         if runtime.db_pool is None:
+            TASK_SUBMISSIONS_TOTAL.labels(result="command_store_unavailable").inc()
             return api_error_response(
                 status_code=503,
                 code="SERVICE_DEGRADED",
                 message="Command store unavailable",
             )
         if runtime.billing_client is None:
+            TASK_SUBMISSIONS_TOTAL.labels(result="billing_unavailable").inc()
             return api_error_response(
                 status_code=503,
                 code="SERVICE_DEGRADED",
@@ -169,6 +172,7 @@ def register_task_write_routes(router: APIRouter) -> None:
                 idempotency_key, generated_task_id=generated_task_id
             )
         except ValueError as exc:
+            TASK_SUBMISSIONS_TOTAL.labels(result="bad_request").inc()
             return api_error_response(status_code=400, code="BAD_REQUEST", message=str(exc))
 
         redis_client = runtime.redis_client
@@ -176,6 +180,7 @@ def register_task_write_routes(router: APIRouter) -> None:
             active_count_raw = await redis_client.get(_active_counter_key(current_user.user_id))
             active_count = int(active_count_raw or "0")
             if active_count >= _max_concurrent(tier=current_user.tier, request=request):
+                TASK_SUBMISSIONS_TOTAL.labels(result="concurrency_reject").inc()
                 return api_error_response(
                     status_code=429,
                     code="TOO_MANY_REQUESTS",
@@ -193,12 +198,14 @@ def register_task_write_routes(router: APIRouter) -> None:
             amount=effective_cost,
         )
         if reserve_result == ReserveCreditsResult.INSUFFICIENT_CREDITS:
+            TASK_SUBMISSIONS_TOTAL.labels(result="insufficient_credits").inc()
             return api_error_response(
                 status_code=402,
                 code="INSUFFICIENT_CREDITS",
                 message="Insufficient credits",
             )
         if reserve_result != ReserveCreditsResult.ACCEPTED:
+            TASK_SUBMISSIONS_TOTAL.labels(result="billing_unavailable").inc()
             return api_error_response(
                 status_code=503,
                 code="SERVICE_DEGRADED",
@@ -212,6 +219,7 @@ def register_task_write_routes(router: APIRouter) -> None:
                 await _release_pending_transfer(
                     request=request, pending_transfer_id=pending_transfer_id
                 )
+                TASK_SUBMISSIONS_TOTAL.labels(result="concurrency_reject").inc()
                 return api_error_response(
                     status_code=429,
                     code="TOO_MANY_REQUESTS",
@@ -256,6 +264,7 @@ def register_task_write_routes(router: APIRouter) -> None:
                 request=request, pending_transfer_id=pending_transfer_id
             )
             if not released:
+                TASK_SUBMISSIONS_TOTAL.labels(result="billing_unavailable").inc()
                 return api_error_response(
                     status_code=503,
                     code="SERVICE_DEGRADED",
@@ -270,6 +279,7 @@ def register_task_write_routes(router: APIRouter) -> None:
                 and command.cost == effective_cost
             )
             if not same_payload:
+                TASK_SUBMISSIONS_TOTAL.labels(result="idempotency_conflict").inc()
                 return api_error_response(
                     status_code=409,
                     code="CONFLICT",
@@ -280,6 +290,7 @@ def register_task_write_routes(router: APIRouter) -> None:
                 await redis_client.incr(_active_counter_key(current_user.user_id))
 
         await _cache_task_state(request=request, command=command)
+        TASK_SUBMISSIONS_TOTAL.labels(result="accepted" if created else "idempotent").inc()
         response = SubmitTaskResponse(
             task_id=command.task_id,
             status=command.status.value,
@@ -369,4 +380,5 @@ def register_task_write_routes(router: APIRouter) -> None:
             status=TaskStatus.CANCELLED.value,
             billing_state=BillingState.RELEASED.value,
         )
+        TASK_COMPLETIONS_TOTAL.labels(status=TaskStatus.CANCELLED.value).inc()
         return JSONResponse(status_code=200, content=response.model_dump(mode="json"))
