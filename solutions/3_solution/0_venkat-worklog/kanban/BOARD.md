@@ -23,7 +23,7 @@ Current board shape is intentional:
 - auth + command API skeleton is complete and verified
 - `P0-004` is complete and verified
 - `P0-005` is complete and verified, including projector rebuild, stale-reserved expiry, TigerBeetle drift alignment, and webhook delivery
-- `P0-006` is the next active slice for observability, reviewer tooling, scenarios, and load proof
+- `P0-006` is in progress: scenario/load reviewer tooling is landed, while runtime metrics, dashboards, and alerts remain
 - sequencing and proof requirements live inside each epic checklist
 
 ## Baseline Requirements Snapshot
@@ -110,4 +110,4 @@ Priority: `P0` (blocker), `P1` (must-have), `P2` (nice-to-have)
 - `done/P0-003-solution3-auth-api-submit.md`
 - `done/P0-004-solution3-dispatch-worker-billing.md`
 - `done/P0-005-solution3-projections-and-recovery.md`
-- `todo/P0-006-solution3-observability-proof.md`
+- `in-progress/P0-006-solution3-observability-proof.md`

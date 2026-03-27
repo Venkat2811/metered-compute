@@ -220,3 +220,7 @@ solutions/*_solution/worklog/baselines/*
 solutions/*_solution/worklog/evidence/full-check-*/
 solutions/*_solution/worklog/evidence/latest/*
 solutions/*_solution/worklog/evidence/load/*
+solutions/*_solution/worklog/evidence/scenarios/*
+!solutions/*_solution/worklog/evidence/README.md
+!solutions/*_solution/worklog/evidence/load/.gitkeep
+!solutions/*_solution/worklog/evidence/scenarios/.gitkeep

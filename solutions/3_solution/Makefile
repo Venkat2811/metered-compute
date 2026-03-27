@@ -7,7 +7,7 @@ LOG_DIR ?= $(REPO_ROOT)worklog/evidence/latest
 
 .PHONY: help venv sync migrate rebuild-query replay-query fmt lint type security deps-audit secrets docker-lint docker-lock smell quality \
 		test-unit test-integration test-e2e test-fault coverage \
-		up down logs ps wait-ready capture-logs demo demo-python prove full-check
+		up down logs ps wait-ready capture-logs demo demo-python scenarios loadtest capacity-model prove full-check
 
 help:
 	@echo "Targets:"
@@ -39,6 +39,9 @@ help:
 	@echo "  capture-logs      Capture compose + metrics logs to LOG_DIR"
 	@echo "  demo              Run shell demo smoke"
 	@echo "  demo-python       Run Python demo smoke"
+	@echo "  scenarios         Run deterministic reviewer scenarios"
+	@echo "  loadtest          Run the Solution 3 load harness"
+	@echo "  capacity-model    Generate capacity projections from the latest load report"
 	@echo "  prove             Bootstrap full verification"
 	@echo "  full-check        Alias for prove"
 
@@ -125,6 +128,15 @@ demo:
 
 demo-python:
 	$(VENV_ACTIVATE) && python ./utils/demo.py
+
+scenarios:
+	$(VENV_ACTIVATE) && python ./scripts/run_scenarios.py
+
+loadtest:
+	$(VENV_ACTIVATE) && python ./scripts/load_harness.py
+
+capacity-model:
+	$(VENV_ACTIVATE) && python ./scripts/capacity_model.py
 
 prove:
 	@./scripts/full_stack_check.sh

@@ -53,12 +53,13 @@ Current proof scope is intentionally narrower than the final RFC scope:
 - live infra integration for projection reset -> Redpanda replay rebuild -> `poll` restored from rebuilt query state
 - live infra integration for reconciler repair after command/query rollback against TigerBeetle posted and voided terminal states
 - live infra integration for webhook callback success and durable dead-letter capture after bounded delivery retries
+- deterministic scenario harness covering health, auth, submit/poll, idempotency, degraded admin, and cancel-while-paused flows
 - bootstrap demo smoke
 - one failure-path script check for readiness timeout
 
 ## Current Status
 
-This directory has completed `P0-005`. The projector, rebuild tooling, TigerBeetle-aware reconciler, and webhook-delivery slices are all landed, and `make prove` is green for the currently implemented scope.
+This directory has completed `P0-005` and has the first reviewer-tooling slice of `P0-006` landed. The projector, rebuild tooling, TigerBeetle-aware reconciler, webhook delivery, deterministic scenario harness, load harness, and capacity model are all real, and `make prove` now includes the scenario run.
 
 What is already real:
 
@@ -85,11 +86,13 @@ What is already real:
 - outbox relay and dispatcher contract seams with unit-tested publish/flush behavior
 - worker-shaped entrypoints for `dispatcher`, `projector`, `reconciler`, `worker`, `watchdog`, and `webhook-worker`
 - isolated test suite in `tests_bootstrap/` covering unit, integration, e2e, and fault slices for the implemented scope
+- deterministic `scripts/run_scenarios.py` harness that writes JSON evidence and exercises the shipped HTTP flows against a live stack
+- `scripts/load_harness.py` plus `scripts/capacity_model.py` for lightweight measured throughput and derived monthly projections
 
 What is not implemented yet:
 
+- Prometheus metrics, non-placeholder Grafana dashboards, and alert rules for the Solution 3 runtime
 - successful admin top-up path
-- scenario harness and load profile
 
 Those land in the remaining `P0-006` slice. The kanban reflects the real ship order.
 
@@ -165,6 +168,9 @@ make coverage
 make migrate
 make rebuild-query
 make replay-query
+make scenarios
+make loadtest
+make capacity-model
 pytest tests_bootstrap/unit
 pytest tests_bootstrap/integration -m integration
 make up

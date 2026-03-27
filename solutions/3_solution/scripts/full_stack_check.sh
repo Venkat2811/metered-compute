@@ -40,6 +40,7 @@ docker compose up --build -d | tee "${artifact_dir}/compose-up.log"
 
 pytest tests_bootstrap/integration -m integration | tee "${artifact_dir}/integration.log"
 pytest tests_bootstrap/e2e -m e2e | tee "${artifact_dir}/e2e.log"
+python ./scripts/run_scenarios.py --output "${artifact_dir}/scenarios.json" | tee "${artifact_dir}/scenarios.log"
 ./scripts/fault_check.sh | tee "${artifact_dir}/fault.log"
 
 status="passed"
