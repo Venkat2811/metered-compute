@@ -1,6 +1,18 @@
 name: mc-solution3
 
 services:
+  migrate:
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile
+    env_file:
+      - .env.dev.defaults
+    command: ["python", "-m", "solution3.db.migrate"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   api:
     build:
       context: .
@@ -14,6 +26,8 @@ services:
       OTEL_EXPORT_TIMEOUT_SECONDS: ${OTEL_EXPORT_TIMEOUT_SECONDS:-3.0}
       OTEL_SAMPLER_RATIO: ${OTEL_SAMPLER_RATIO:-1.0}
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       rabbitmq:
@@ -43,6 +57,8 @@ services:
       OTEL_EXPORT_TIMEOUT_SECONDS: ${OTEL_EXPORT_TIMEOUT_SECONDS:-3.0}
       OTEL_SAMPLER_RATIO: ${OTEL_SAMPLER_RATIO:-1.0}
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       rabbitmq:
@@ -68,6 +84,8 @@ services:
       OTEL_EXPORT_TIMEOUT_SECONDS: ${OTEL_EXPORT_TIMEOUT_SECONDS:-3.0}
       OTEL_SAMPLER_RATIO: ${OTEL_SAMPLER_RATIO:-1.0}
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
       postgres:
@@ -87,6 +105,8 @@ services:
       OTEL_EXPORT_TIMEOUT_SECONDS: ${OTEL_EXPORT_TIMEOUT_SECONDS:-3.0}
       OTEL_SAMPLER_RATIO: ${OTEL_SAMPLER_RATIO:-1.0}
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
       postgres:
@@ -106,6 +126,8 @@ services:
       OTEL_EXPORT_TIMEOUT_SECONDS: ${OTEL_EXPORT_TIMEOUT_SECONDS:-3.0}
       OTEL_SAMPLER_RATIO: ${OTEL_SAMPLER_RATIO:-1.0}
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
       postgres:
@@ -125,6 +147,8 @@ services:
       OTEL_EXPORT_TIMEOUT_SECONDS: ${OTEL_EXPORT_TIMEOUT_SECONDS:-3.0}
       OTEL_SAMPLER_RATIO: ${OTEL_SAMPLER_RATIO:-1.0}
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
       postgres:
@@ -144,6 +168,8 @@ services:
       OTEL_EXPORT_TIMEOUT_SECONDS: ${OTEL_EXPORT_TIMEOUT_SECONDS:-3.0}
       OTEL_SAMPLER_RATIO: ${OTEL_SAMPLER_RATIO:-1.0}
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -163,6 +189,8 @@ services:
       OTEL_EXPORT_TIMEOUT_SECONDS: ${OTEL_EXPORT_TIMEOUT_SECONDS:-3.0}
       OTEL_SAMPLER_RATIO: ${OTEL_SAMPLER_RATIO:-1.0}
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
       postgres:
