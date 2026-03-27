@@ -320,3 +320,62 @@ async def test_fetch_unpublished_outbox_events_and_mark_published() -> None:
             ([event_id],),
         )
     ]
+
+
+@pytest.mark.asyncio
+async def test_is_inbox_event_processed_checks_consumer_dedup_key() -> None:
+    pool = FakePool()
+    event_id = uuid4()
+    pool.fetchrow_results = [{"exists": 1}, None]
+
+    first = await repository.is_inbox_event_processed(
+        pool,
+        event_id=event_id,
+        consumer_name="projector",
+    )
+    second = await repository.is_inbox_event_processed(
+        pool,
+        event_id=event_id,
+        consumer_name="projector",
+    )
+
+    assert first is True
+    assert second is False
+    assert pool.fetchrow_calls[0][1] == (event_id, "projector")
+
+
+@pytest.mark.asyncio
+async def test_apply_task_projection_upserts_view_and_records_checkpoint() -> None:
+    connection = FakeConnection()
+    projected_row = _query_row(
+        task_id=UUID("019c6db7-0857-7858-af93-f724ae4fe2c2"),
+        status="COMPLETED",
+        billing_state="CAPTURED",
+        result={"sum": 5},
+        error=None,
+        projection_version=14,
+    )
+    connection.fetchrow_results = [projected_row]
+    pool = FakePool(connection=connection)
+    event_id = uuid4()
+
+    view = await repository.apply_task_projection(
+        pool,
+        consumer_name="projector",
+        projector_name="projector",
+        topic="tasks.completed",
+        partition_id=0,
+        committed_offset=14,
+        event_id=event_id,
+        event={
+            "task_id": "019c6db7-0857-7858-af93-f724ae4fe2c2",
+            "result": {"sum": 5},
+            "error": None,
+        },
+    )
+
+    assert view.status == TaskStatus.COMPLETED
+    assert view.billing_state == BillingState.CAPTURED
+    assert view.projection_version == 14
+    assert connection.execute_calls[0][1] == (event_id, "projector")
+    assert connection.execute_calls[1][1] == ("projector", "tasks.completed", 0, 14)

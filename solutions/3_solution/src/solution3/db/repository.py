@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping
 from typing import Any
 from uuid import UUID
 
@@ -16,6 +17,15 @@ from solution3.constants import (
     UserRole,
 )
 from solution3.models.domain import AuthUser, OutboxEventRecord, TaskCommand, TaskQueryView
+
+TERMINAL_PROJECTION_TOPICS = frozenset(
+    {
+        "tasks.completed",
+        "tasks.failed",
+        "tasks.cancelled",
+        "tasks.expired",
+    }
+)
 
 
 def _map_task_command(row: asyncpg.Record) -> TaskCommand:
@@ -40,6 +50,12 @@ def _map_task_command(row: asyncpg.Record) -> TaskCommand:
 
 def _map_task_query_view(row: asyncpg.Record) -> TaskQueryView:
     result = row["result"]
+    if isinstance(result, str):
+        try:
+            decoded = json.loads(result)
+        except json.JSONDecodeError:
+            decoded = None
+        result = decoded if isinstance(decoded, dict) else None
     return TaskQueryView(
         task_id=row["task_id"],
         user_id=row["user_id"],
@@ -349,3 +365,134 @@ async def mark_outbox_events_published(pool: asyncpg.Pool, *, event_ids: list[UU
         """,
         event_ids,
     )
+
+
+async def is_inbox_event_processed(
+    pool: asyncpg.Pool,
+    *,
+    event_id: UUID,
+    consumer_name: str,
+) -> bool:
+    row = await pool.fetchrow(
+        """
+        SELECT 1
+        FROM cmd.inbox_events
+        WHERE event_id=$1 AND consumer_name=$2
+        """,
+        event_id,
+        consumer_name,
+    )
+    return row is not None
+
+
+async def apply_task_projection(
+    pool: asyncpg.Pool,
+    *,
+    consumer_name: str,
+    projector_name: str,
+    topic: str,
+    partition_id: int,
+    committed_offset: int,
+    event_id: UUID,
+    event: Mapping[str, Any],
+) -> TaskQueryView:
+    task_id = UUID(str(event["task_id"]))
+    overwrite_terminal_fields = topic in TERMINAL_PROJECTION_TOPICS
+    result_payload = event.get("result") if overwrite_terminal_fields else None
+    error_value = str(event["error"]) if event.get("error") is not None else None
+
+    async with pool.acquire() as connection, connection.transaction():
+        projected_row = await connection.fetchrow(
+            """
+            INSERT INTO query.task_query_view(
+              task_id,
+              user_id,
+              tier,
+              mode,
+              model_class,
+              status,
+              billing_state,
+              result,
+              error,
+              runtime_ms,
+              projection_version,
+              created_at,
+              updated_at
+            )
+            SELECT
+              command.task_id,
+              command.user_id,
+              command.tier,
+              command.mode,
+              command.model_class,
+              command.status,
+              command.billing_state,
+              CASE WHEN $2 THEN $3::jsonb ELSE NULL END,
+              CASE WHEN $2 THEN $4 ELSE NULL END,
+              NULL,
+              $5,
+              command.created_at,
+              command.updated_at
+            FROM cmd.task_commands AS command
+            WHERE command.task_id = $1
+            ON CONFLICT (task_id) DO UPDATE SET
+              user_id = EXCLUDED.user_id,
+              tier = EXCLUDED.tier,
+              mode = EXCLUDED.mode,
+              model_class = EXCLUDED.model_class,
+              status = EXCLUDED.status,
+              billing_state = EXCLUDED.billing_state,
+              result = CASE
+                WHEN $2 THEN EXCLUDED.result
+                ELSE query.task_query_view.result
+              END,
+              error = CASE
+                WHEN $2 THEN EXCLUDED.error
+                ELSE query.task_query_view.error
+              END,
+              runtime_ms = EXCLUDED.runtime_ms,
+              projection_version = GREATEST(
+                query.task_query_view.projection_version,
+                EXCLUDED.projection_version
+              ),
+              updated_at = EXCLUDED.updated_at
+            RETURNING *
+            """,
+            task_id,
+            overwrite_terminal_fields,
+            json.dumps(result_payload) if result_payload is not None else None,
+            error_value,
+            committed_offset,
+        )
+        if projected_row is None:
+            raise RuntimeError("projection source task was not found")
+
+        await connection.execute(
+            """
+            INSERT INTO cmd.inbox_events(event_id, consumer_name)
+            VALUES($1, $2)
+            """,
+            event_id,
+            consumer_name,
+        )
+        await connection.execute(
+            """
+            INSERT INTO cmd.projection_checkpoints(
+              projector_name,
+              topic,
+              partition_id,
+              committed_offset
+            )
+            VALUES($1, $2, $3, $4)
+            ON CONFLICT (projector_name) DO UPDATE SET
+              topic = EXCLUDED.topic,
+              partition_id = EXCLUDED.partition_id,
+              committed_offset = EXCLUDED.committed_offset,
+              updated_at = now()
+            """,
+            projector_name,
+            topic,
+            partition_id,
+            committed_offset,
+        )
+        return _map_task_query_view(projected_row)
