@@ -105,6 +105,7 @@ class TigerBeetleBilling:
             code=TRANSFER_CODE_TASK,
             flags=tb.TransferFlags.PENDING,
             timeout=self._pending_timeout_seconds,
+            user_data_128=_uuid_to_u128(transfer_id),
         )
         errors = self._client.create_transfers([transfer])
         if not errors:
@@ -124,6 +125,7 @@ class TigerBeetleBilling:
             ledger=self._ledger_id,
             code=TRANSFER_CODE_TASK,
             flags=tb.TransferFlags.POST_PENDING_TRANSFER,
+            user_data_128=_uuid_to_u128(pending_transfer_id),
         )
         return not bool(self._client.create_transfers([transfer]))
 
@@ -137,6 +139,7 @@ class TigerBeetleBilling:
             ledger=self._ledger_id,
             code=TRANSFER_CODE_TASK,
             flags=tb.TransferFlags.VOID_PENDING_TRANSFER,
+            user_data_128=_uuid_to_u128(pending_transfer_id),
         )
         return not bool(self._client.create_transfers([transfer]))
 

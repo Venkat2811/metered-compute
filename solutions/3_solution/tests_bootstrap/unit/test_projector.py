@@ -270,6 +270,7 @@ def test_build_redpanda_consumer_uses_projector_group_and_topics(
         "tasks.completed",
         "tasks.failed",
         "tasks.cancelled",
+        "tasks.expired",
     ]
 
 

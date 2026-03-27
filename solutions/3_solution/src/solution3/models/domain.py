@@ -69,3 +69,25 @@ class OutboxEventRecord:
     topic: str
     payload: str
     created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class StaleReservedTask:
+    task_id: UUID
+    user_id: UUID
+    tier: SubscriptionTier
+    mode: RequestMode
+    model_class: ModelClass
+    status: TaskStatus
+    billing_state: BillingState
+    tb_pending_transfer_id: UUID
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class ReconciledTaskState:
+    task_id: UUID
+    user_id: UUID
+    status: TaskStatus
+    billing_state: BillingState
+    model_class: ModelClass

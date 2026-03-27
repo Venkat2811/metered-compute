@@ -4,7 +4,7 @@ Objective:
 
 Add query-side materialization and recovery mechanisms so Sol 3 is operational under stale states and infra churn.
 
-Status: in progress as of 2026-03-27. The projector and rebuild slices are green: Redpanda task events now project into `query.task_query_view`, inbox dedup is in place, projection checkpoints advance, live poll fallback works after deleting the Redis task key, and the projection can now be rebuilt either from SQL or by replaying Redpanda from offset `0`. Remaining gaps are stale-state reconciliation and webhook delivery.
+Status: in progress as of 2026-03-27. The projector, rebuild, and first reconciler slices are green: Redpanda task events now project into `query.task_query_view`, inbox dedup is in place, projection checkpoints advance, live poll fallback works after deleting the Redis task key, the projection can now be rebuilt either from SQL or by replaying Redpanda from offset `0`, and stale `RESERVED` tasks now reconcile to `EXPIRED` with Redis + outbox updates. Remaining gaps are explicit TigerBeetle posted/voided drift alignment and webhook delivery.
 
 Acceptance criteria:
 
@@ -34,18 +34,19 @@ Checklist:
 - [x] Add `src/solution3/workers/rebuilder.py` command:
   - support `--from-beginning` mode.
 - [ ] Add `src/solution3/workers/reconciler.py`:
-  - scan stale `RESERVED` tasks
-  - consult TB transfer status
-  - emit correction events.
+  - [x] scan stale `RESERVED` tasks and expire them after the TB timeout window
+  - [ ] align explicit TB posted/voided drift branches
+  - [x] emit `tasks.expired` correction events and Redis hot-path updates.
 - [ ] Add `src/solution3/workers/webhook_worker.py`:
   - consume terminal events
   - retry policy and exponential backoff
   - dead-letter to separate structure.
 - [x] Add integration test for projector catch-up and query-view fallback under Redis cache loss.
 - [x] Add integration test for Redpanda replay rebuild after projection reset.
+- [x] Add integration test for stale reserved expiry with the worker intentionally stopped.
 - [ ] Add integration test for reconciler drift fix.
 
 Completion criteria:
 
 - [x] Poll can be served from query view under steady state.
-- [ ] Stale reserved tasks are corrected without manual intervention.
+- [x] Stale reserved tasks are corrected without manual intervention.

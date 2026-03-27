@@ -89,6 +89,7 @@ class TestTigerBeetleBilling:
         assert transfer.code == TRANSFER_CODE_TASK
         assert transfer.flags == tb.TransferFlags.PENDING
         assert transfer.timeout == 600
+        assert transfer.user_data_128 == _uuid_to_u128(transfer_id)
 
     def test_reserve_credits_returns_false_when_tb_rejects_transfer(self) -> None:
         error = MagicMock()
@@ -127,6 +128,7 @@ class TestTigerBeetleBilling:
         assert transfer.pending_id == _uuid_to_u128(pending_transfer_id)
         assert transfer.flags == tb.TransferFlags.POST_PENDING_TRANSFER
         assert transfer.code == TRANSFER_CODE_TASK
+        assert transfer.user_data_128 == _uuid_to_u128(pending_transfer_id)
 
     def test_void_pending_transfer_builds_void_flag_transfer(self) -> None:
         self.client.create_transfers.return_value = []
@@ -139,6 +141,7 @@ class TestTigerBeetleBilling:
         assert transfer.pending_id == _uuid_to_u128(pending_transfer_id)
         assert transfer.flags == tb.TransferFlags.VOID_PENDING_TRANSFER
         assert transfer.code == TRANSFER_CODE_TASK
+        assert transfer.user_data_128 == _uuid_to_u128(pending_transfer_id)
 
     def test_topup_credits_builds_posted_transfer(self) -> None:
         self.client.create_transfers.return_value = []

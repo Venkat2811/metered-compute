@@ -14,6 +14,7 @@ from redis.asyncio import Redis
 from solution3.constants import (
     REDPANDA_TOPIC_TASK_CANCELLED,
     REDPANDA_TOPIC_TASK_COMPLETED,
+    REDPANDA_TOPIC_TASK_EXPIRED,
     REDPANDA_TOPIC_TASK_FAILED,
     REDPANDA_TOPIC_TASK_REQUESTED,
     REDPANDA_TOPIC_TASK_STARTED,
@@ -132,6 +133,7 @@ def build_redpanda_consumer(
             getattr(settings, "redpanda_topic_task_completed", REDPANDA_TOPIC_TASK_COMPLETED),
             getattr(settings, "redpanda_topic_task_failed", REDPANDA_TOPIC_TASK_FAILED),
             getattr(settings, "redpanda_topic_task_cancelled", REDPANDA_TOPIC_TASK_CANCELLED),
+            getattr(settings, "redpanda_topic_task_expired", REDPANDA_TOPIC_TASK_EXPIRED),
         ]
     )
     return cast(ProjectorConsumer, consumer)

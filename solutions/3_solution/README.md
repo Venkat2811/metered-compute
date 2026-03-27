@@ -56,7 +56,7 @@ Current proof scope is intentionally narrower than the final RFC scope:
 
 ## Current Status
 
-This directory has completed `P0-004` and now has the projector + rebuild slices of `P0-005` landed.
+This directory has completed `P0-004` and now has the projector, rebuild, and stale-reserved reconciler slices of `P0-005` landed.
 
 What is already real:
 
@@ -77,13 +77,14 @@ What is already real:
 - real projector process that consumes Redpanda task events into `query.task_query_view`, inbox dedup, checkpoints, and Redis write-through
 - live poll fallback from `query.task_query_view` when the Redis task key is missing
 - rebuild tooling that can restore the projection from SQL or replay the Redpanda task log from offset 0
+- real reconciler path for stale `RESERVED` tasks: one-shot or looped scan, guarded transition to `EXPIRED`, Redis hot-path update, active-slot release, and `tasks.expired` outbox emission
 - outbox relay and dispatcher contract seams with unit-tested publish/flush behavior
 - worker-shaped entrypoints for `dispatcher`, `projector`, `reconciler`, `worker`, `watchdog`, and `webhook-worker`
 - isolated test suite in `tests_bootstrap/` covering unit, integration, e2e, and fault slices for the implemented scope
 
 What is not implemented yet:
 
-- reconciler flow for stale reserved states
+- explicit TigerBeetle posted/voided drift alignment branches in the reconciler
 - webhook worker delivery with retry/dead-letter handling
 - successful admin top-up path
 - scenario harness and load profile

@@ -16,7 +16,14 @@ from solution3.constants import (
     TaskStatus,
     UserRole,
 )
-from solution3.models.domain import AuthUser, OutboxEventRecord, TaskCommand, TaskQueryView
+from solution3.models.domain import (
+    AuthUser,
+    OutboxEventRecord,
+    ReconciledTaskState,
+    StaleReservedTask,
+    TaskCommand,
+    TaskQueryView,
+)
 
 TERMINAL_PROJECTION_TOPICS = frozenset(
     {
@@ -80,6 +87,20 @@ def _map_outbox_event(row: asyncpg.Record) -> OutboxEventRecord:
         event_type=row["event_type"],
         topic=row["topic"],
         payload=row["payload"],
+        created_at=row["created_at"],
+    )
+
+
+def _map_stale_reserved_task(row: asyncpg.Record) -> StaleReservedTask:
+    return StaleReservedTask(
+        task_id=row["task_id"],
+        user_id=row["user_id"],
+        tier=SubscriptionTier(row["tier"]),
+        mode=RequestMode(row["mode"]),
+        model_class=ModelClass(row["model_class"]),
+        status=TaskStatus(row["status"]),
+        billing_state=BillingState(row["billing_state"]),
+        tb_pending_transfer_id=row["tb_pending_transfer_id"],
         created_at=row["created_at"],
     )
 
@@ -563,3 +584,110 @@ async def rebuild_task_query_view_from_commands(pool: asyncpg.Pool) -> int:
             """
         )
     return len(rows)
+
+
+async def list_stale_reserved_tasks(
+    pool: asyncpg.Pool, *, stale_after_seconds: int
+) -> list[StaleReservedTask]:
+    rows = await pool.fetch(
+        """
+        SELECT
+          task_id,
+          user_id,
+          tier,
+          mode,
+          model_class,
+          status,
+          billing_state,
+          tb_pending_transfer_id,
+          created_at
+        FROM cmd.task_commands
+        WHERE billing_state=$1
+          AND status IN ($2, $3)
+          AND created_at < now() - make_interval(secs => $4)
+        ORDER BY created_at, task_id
+        """,
+        BillingState.RESERVED.value,
+        TaskStatus.PENDING.value,
+        TaskStatus.RUNNING.value,
+        stale_after_seconds,
+    )
+    return [_map_stale_reserved_task(row) for row in rows]
+
+
+async def expire_stale_reserved_task(
+    pool: asyncpg.Pool,
+    *,
+    task_id: UUID,
+    tb_pending_transfer_id: UUID,
+    stale_after_seconds: int,
+) -> ReconciledTaskState | None:
+    async with pool.acquire() as connection, connection.transaction():
+        updated = await connection.fetchrow(
+            """
+            UPDATE cmd.task_commands
+            SET status=$2, billing_state=$3, updated_at=now()
+            WHERE task_id=$1
+              AND billing_state=$4
+              AND status IN ($5, $6)
+              AND created_at < now() - make_interval(secs => $7)
+            RETURNING task_id, user_id, status, billing_state, model_class
+            """,
+            task_id,
+            TaskStatus.EXPIRED.value,
+            BillingState.EXPIRED.value,
+            BillingState.RESERVED.value,
+            TaskStatus.PENDING.value,
+            TaskStatus.RUNNING.value,
+            stale_after_seconds,
+        )
+        if updated is None:
+            return None
+
+        await connection.execute(
+            """
+            UPDATE query.task_query_view
+            SET status=$2, billing_state=$3, updated_at=now()
+            WHERE task_id=$1
+            """,
+            task_id,
+            TaskStatus.EXPIRED.value,
+            BillingState.EXPIRED.value,
+        )
+        await connection.execute(
+            """
+            INSERT INTO cmd.billing_reconcile_jobs(
+              task_id,
+              tb_pending_transfer_id,
+              state,
+              resolution
+            )
+            VALUES($1, $2, 'RESOLVED', 'TB_AUTO_EXPIRED')
+            """,
+            task_id,
+            tb_pending_transfer_id,
+        )
+        await connection.execute(
+            """
+            INSERT INTO cmd.outbox_events(aggregate_id, event_type, topic, payload)
+            VALUES($1, $2, $3, $4::jsonb)
+            """,
+            task_id,
+            "task.expired",
+            "tasks.expired",
+            json.dumps(
+                {
+                    "task_id": str(updated["task_id"]),
+                    "user_id": str(updated["user_id"]),
+                    "status": TaskStatus.EXPIRED.value,
+                    "billing_state": BillingState.EXPIRED.value,
+                }
+            ),
+        )
+        return ReconciledTaskState(
+            task_id=updated["task_id"],
+            user_id=updated["user_id"],
+            status=TaskStatus(updated["status"]),
+            billing_state=BillingState(updated["billing_state"]),
+            model_class=ModelClass(updated["model_class"]),
+        )

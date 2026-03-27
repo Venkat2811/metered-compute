@@ -414,3 +414,61 @@ async def test_rebuild_task_query_view_from_commands_returns_inserted_row_count(
     assert "INSERT INTO query.task_query_view" in query
     assert "FROM cmd.task_commands" in query
     assert args == ()
+
+
+@pytest.mark.asyncio
+async def test_list_stale_reserved_tasks_maps_rows() -> None:
+    pool = FakePool()
+    stale_row = _task_row(
+        task_id=UUID("019c6db7-0857-7858-af93-f724ae4fe2c2"),
+        status="PENDING",
+        billing_state="RESERVED",
+        tb_pending_transfer_id=UUID("019c6db7-1439-7ace-bd2b-e1a3bb03328c"),
+    )
+    pool.fetch_results = [[stale_row]]
+
+    rows = await repository.list_stale_reserved_tasks(pool, stale_after_seconds=720)
+
+    assert [row.task_id for row in rows] == [UUID("019c6db7-0857-7858-af93-f724ae4fe2c2")]
+    assert rows[0].billing_state == BillingState.RESERVED
+    assert rows[0].status == TaskStatus.PENDING
+    assert pool.fetch_calls[0][1][-1] == 720
+
+
+@pytest.mark.asyncio
+async def test_expire_stale_reserved_task_updates_state_and_emits_outbox() -> None:
+    connection = FakeConnection()
+    task_id = UUID("019c6db7-0857-7858-af93-f724ae4fe2c2")
+    pending_transfer_id = UUID("019c6db7-1439-7ace-bd2b-e1a3bb03328c")
+    connection.fetchrow_results = [
+        {
+            "task_id": task_id,
+            "user_id": UUID("47b47338-5355-4edc-860b-846d71a2a75a"),
+            "status": "EXPIRED",
+            "billing_state": "EXPIRED",
+            "model_class": "small",
+        }
+    ]
+    pool = FakePool(connection=connection)
+
+    reconciled = await repository.expire_stale_reserved_task(
+        pool,
+        task_id=task_id,
+        tb_pending_transfer_id=pending_transfer_id,
+        stale_after_seconds=720,
+    )
+
+    assert reconciled is not None
+    assert reconciled.status == TaskStatus.EXPIRED
+    assert reconciled.billing_state == BillingState.EXPIRED
+    assert "UPDATE query.task_query_view" in connection.execute_calls[0][0]
+    assert connection.execute_calls[1][1] == (task_id, pending_transfer_id)
+    outbox_args = connection.execute_calls[2][1]
+    assert outbox_args[:3] == (task_id, "task.expired", "tasks.expired")
+    payload = json.loads(cast(str, outbox_args[3]))
+    assert payload == {
+        "task_id": str(task_id),
+        "user_id": "47b47338-5355-4edc-860b-846d71a2a75a",
+        "status": "EXPIRED",
+        "billing_state": "EXPIRED",
+    }

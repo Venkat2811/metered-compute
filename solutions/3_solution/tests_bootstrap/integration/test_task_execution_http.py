@@ -106,6 +106,23 @@ async def _reset_projection_state_in_postgres() -> None:
         await connection.close()
 
 
+async def _age_task_command(task_id: str, *, age_seconds: int) -> None:
+    connection = await asyncpg.connect(dsn=_postgres_dsn())
+    try:
+        await connection.execute(
+            """
+            UPDATE cmd.task_commands
+            SET created_at = now() - make_interval(secs => $2),
+                updated_at = now() - make_interval(secs => $2)
+            WHERE task_id = $1::uuid
+            """,
+            task_id,
+            age_seconds,
+        )
+    finally:
+        await connection.close()
+
+
 @pytest.mark.integration
 def test_submit_completes_over_live_worker_path() -> None:
     access_token = _oauth_access_token(api_key=ALICE_API_KEY)
@@ -265,3 +282,60 @@ def test_rebuilder_replays_redpanda_log_and_restores_projection_state() -> None:
     assert payload["status"] == "COMPLETED"
     assert payload["billing_state"] == "CAPTURED"
     assert payload["result"] == {"sum": 13}
+
+
+@pytest.mark.integration
+def test_reconciler_expires_stale_reserved_task_when_worker_is_stopped() -> None:
+    _compose("stop", "worker")
+    try:
+        access_token = _oauth_access_token(api_key=ALICE_API_KEY)
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Idempotency-Key": f"itest-reconcile-{uuid.uuid4()}",
+        }
+
+        submit = httpx.post(
+            f"{BASE_URL}/v1/task",
+            headers=headers,
+            json={"x": 8, "y": 9},
+            timeout=10.0,
+        )
+        assert submit.status_code == 201, submit.text
+        task_id = submit.json()["task_id"]
+
+        pending_poll = httpx.get(
+            f"{BASE_URL}/v1/poll",
+            params={"task_id": task_id},
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=10.0,
+        )
+        assert pending_poll.status_code == 200, pending_poll.text
+        assert pending_poll.json()["status"] == "PENDING"
+
+        asyncio.run(_age_task_command(task_id, age_seconds=3600))
+        _compose(
+            "run",
+            "--rm",
+            "--no-deps",
+            "--build",
+            "api",
+            "python",
+            "-m",
+            "solution3.workers.reconciler",
+            "--once",
+            "--stale-after-seconds",
+            "60",
+        )
+
+        expired_poll = httpx.get(
+            f"{BASE_URL}/v1/poll",
+            params={"task_id": task_id},
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=10.0,
+        )
+        assert expired_poll.status_code == 200, expired_poll.text
+        payload = expired_poll.json()
+        assert payload["status"] == "EXPIRED"
+        assert payload["billing_state"] == "EXPIRED"
+    finally:
+        _compose("up", "-d", "worker")
