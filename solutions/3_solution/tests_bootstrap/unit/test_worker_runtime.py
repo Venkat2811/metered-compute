@@ -68,12 +68,33 @@ class FakeQueueChannel:
     def __init__(self) -> None:
         self.ack_calls: list[int] = []
         self.nack_calls: list[tuple[int, bool]] = []
+        self.queue_declarations: list[dict[str, object]] = []
+        self.queue_bindings: list[dict[str, object]] = []
+        self.queue_unbindings: list[dict[str, object]] = []
+        self.consume_calls: list[dict[str, object]] = []
+        self.cancel_calls: list[str] = []
 
     def basic_ack(self, *, delivery_tag: int) -> None:
         self.ack_calls.append(delivery_tag)
 
     def basic_nack(self, *, delivery_tag: int, requeue: bool) -> None:
         self.nack_calls.append((delivery_tag, requeue))
+
+    def queue_declare(self, *, queue: str, durable: bool) -> None:
+        self.queue_declarations.append({"queue": queue, "durable": durable})
+
+    def queue_bind(self, *, queue: str, exchange: str, arguments: dict[str, str]) -> None:
+        self.queue_bindings.append({"queue": queue, "exchange": exchange, "arguments": arguments})
+
+    def queue_unbind(self, *, queue: str, exchange: str, arguments: dict[str, str]) -> None:
+        self.queue_unbindings.append({"queue": queue, "exchange": exchange, "arguments": arguments})
+
+    def basic_consume(self, *, queue: str, on_message_callback: object) -> str:
+        self.consume_calls.append({"queue": queue, "callback": on_message_callback})
+        return f"ctag-{queue}"
+
+    def basic_cancel(self, consumer_tag: str) -> None:
+        self.cancel_calls.append(consumer_tag)
 
 
 def _task_command() -> TaskCommand:
@@ -398,6 +419,46 @@ def test_handle_delivery_nacks_requeue_on_processing_failure(
 
     assert channel.ack_calls == []
     assert channel.nack_calls == [(9, True)]
+
+
+def test_hot_queue_router_declares_binds_and_consumes_model_queue() -> None:
+    channel = FakeQueueChannel()
+    router = worker.WorkerHotRouteManager(
+        channel=cast(worker.WorkerQueueChannel, channel),
+        on_message_callback=object(),
+    )
+
+    router.activate(ModelClass.MEDIUM)
+
+    assert channel.queue_declarations == [{"queue": "hot-medium", "durable": True}]
+    assert channel.queue_bindings == [
+        {
+            "queue": "hot-medium",
+            "exchange": "preloaded",
+            "arguments": {"x-match": "all", "model_class": "medium"},
+        }
+    ]
+    assert channel.consume_calls[0]["queue"] == "hot-medium"
+
+
+def test_hot_queue_router_cancels_and_optionally_unbinds_hot_queue() -> None:
+    channel = FakeQueueChannel()
+    router = worker.WorkerHotRouteManager(
+        channel=cast(worker.WorkerQueueChannel, channel),
+        on_message_callback=object(),
+    )
+    router.activate(ModelClass.SMALL)
+
+    router.deactivate(ModelClass.SMALL, unbind=True)
+
+    assert channel.cancel_calls == ["ctag-hot-small"]
+    assert channel.queue_unbindings == [
+        {
+            "queue": "hot-small",
+            "exchange": "preloaded",
+            "arguments": {"x-match": "all", "model_class": "small"},
+        }
+    ]
 
 
 def test_main_configures_logging_and_runs_worker_loop(monkeypatch: pytest.MonkeyPatch) -> None:

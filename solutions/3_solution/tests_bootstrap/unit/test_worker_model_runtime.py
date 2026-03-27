@@ -14,10 +14,37 @@ from solution3.workers.worker import WorkerModelRuntime
 class FakeWarmRedis:
     def __init__(self) -> None:
         self.members: list[tuple[str, str]] = []
+        self.removals: list[tuple[str, str]] = []
+        self.cardinality: dict[str, set[str]] = {}
 
     async def sadd(self, key: str, value: str) -> int:
+        members = self.cardinality.setdefault(key, set())
+        added = 0 if value in members else 1
+        members.add(value)
         self.members.append((key, value))
-        return 1
+        return added
+
+    async def srem(self, key: str, value: str) -> int:
+        members = self.cardinality.setdefault(key, set())
+        removed = 1 if value in members else 0
+        members.discard(value)
+        self.removals.append((key, value))
+        return removed
+
+    async def scard(self, key: str) -> int:
+        return len(self.cardinality.get(key, set()))
+
+
+class FakeRouteManager:
+    def __init__(self) -> None:
+        self.activations: list[ModelClass] = []
+        self.deactivations: list[tuple[ModelClass, bool]] = []
+
+    def activate(self, model_class: ModelClass) -> None:
+        self.activations.append(model_class)
+
+    def deactivate(self, model_class: ModelClass, *, unbind: bool) -> None:
+        self.deactivations.append((model_class, unbind))
 
 
 def _task_command(*, model_class: ModelClass) -> TaskCommand:
@@ -46,7 +73,12 @@ async def test_execute_cold_starts_then_registers_warm_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     redis = FakeWarmRedis()
-    runtime = WorkerModelRuntime(worker_id="worker-a", redis_client=redis)
+    route_manager = FakeRouteManager()
+    runtime = WorkerModelRuntime(
+        worker_id="worker-a",
+        redis_client=redis,
+        route_manager=route_manager,
+    )
     task = _task_command(model_class=ModelClass.MEDIUM)
     sleep_calls: list[float] = []
 
@@ -61,6 +93,8 @@ async def test_execute_cold_starts_then_registers_warm_model(
     assert runtime.warm_model == ModelClass.MEDIUM
     assert sleep_calls == [3.0, 4.0]
     assert redis.members == [("warm:medium", "worker-a")]
+    assert route_manager.activations == [ModelClass.MEDIUM]
+    assert route_manager.deactivations == []
 
 
 @pytest.mark.asyncio
@@ -86,12 +120,18 @@ async def test_execute_hot_path_skips_model_load(monkeypatch: pytest.MonkeyPatch
 @pytest.mark.asyncio
 async def test_go_warm_registers_worker_in_model_registry() -> None:
     redis = FakeWarmRedis()
-    runtime = WorkerModelRuntime(worker_id="worker-b", redis_client=redis)
+    route_manager = FakeRouteManager()
+    runtime = WorkerModelRuntime(
+        worker_id="worker-b",
+        redis_client=redis,
+        route_manager=route_manager,
+    )
 
     await runtime.go_warm(ModelClass.LARGE)
 
     assert runtime.warm_model == ModelClass.LARGE
     assert redis.members == [("warm:large", "worker-b")]
+    assert route_manager.activations == [ModelClass.LARGE]
 
 
 @pytest.mark.asyncio
@@ -99,7 +139,12 @@ async def test_execute_switching_models_triggers_second_cold_start(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     redis = FakeWarmRedis()
-    runtime = WorkerModelRuntime(worker_id="worker-c", redis_client=redis)
+    route_manager = FakeRouteManager()
+    runtime = WorkerModelRuntime(
+        worker_id="worker-c",
+        redis_client=redis,
+        route_manager=route_manager,
+    )
     small_task = _task_command(model_class=ModelClass.SMALL)
     large_task = _task_command(model_class=ModelClass.LARGE)
     sleep_calls: list[float] = []
@@ -117,6 +162,27 @@ async def test_execute_switching_models_triggers_second_cold_start(
     assert runtime.warm_model == ModelClass.LARGE
     assert sleep_calls == [3.0, 2.0, 3.0, 6.0]
     assert redis.members == [("warm:small", "worker-c"), ("warm:large", "worker-c")]
+    assert redis.removals == [("warm:small", "worker-c")]
+    assert route_manager.activations == [ModelClass.SMALL, ModelClass.LARGE]
+    assert route_manager.deactivations == [(ModelClass.SMALL, True)]
+
+
+@pytest.mark.asyncio
+async def test_shutdown_removes_current_warm_route() -> None:
+    redis = FakeWarmRedis()
+    route_manager = FakeRouteManager()
+    runtime = WorkerModelRuntime(
+        worker_id="worker-e",
+        redis_client=redis,
+        route_manager=route_manager,
+    )
+
+    await runtime.go_warm(ModelClass.SMALL)
+    await runtime.shutdown()
+
+    assert runtime.warm_model is None
+    assert redis.removals == [("warm:small", "worker-e")]
+    assert route_manager.deactivations == [(ModelClass.SMALL, True)]
 
 
 @pytest.mark.asyncio

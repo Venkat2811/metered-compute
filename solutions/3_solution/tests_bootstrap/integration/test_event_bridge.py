@@ -12,7 +12,7 @@ import asyncpg
 import pytest
 from kafka import KafkaConsumer
 
-from solution3.constants import RABBITMQ_EXCHANGE_PRELOADED
+from solution3.constants import RABBITMQ_EXCHANGE_COLDSTART, RABBITMQ_EXCHANGE_PRELOADED
 from solution3.workers import dispatcher
 
 
@@ -164,4 +164,106 @@ def test_outbox_relay_and_dispatcher_bridge_over_live_services() -> None:
         if consumer is not None:
             consumer.close(autocommit=False, timeout_ms=1000)
         raw_channel.queue_delete(queue=probe_queue)
+        connection.close()
+
+
+@pytest.mark.integration
+def test_dispatch_prefers_hot_binding_over_cold_fallback() -> None:
+    task_id = str(uuid4())
+    hot_queue = f"itest-hot-{uuid4()}"
+    cold_queue = f"itest-cold-{uuid4()}"
+    payload = dispatcher.encode_task_requested_event(
+        {
+            "task_id": task_id,
+            "user_id": str(uuid4()),
+            "tier": "pro",
+            "mode": "async",
+            "model_class": "small",
+            "x": 1,
+            "y": 2,
+            "cost": 10,
+            "tb_pending_transfer_id": str(uuid4()),
+        }
+    )
+
+    connection, channel = dispatcher.build_rabbitmq_channel(
+        SimpleNamespace(rabbitmq_url=_rabbitmq_url())
+    )
+    dispatcher.declare_dispatch_topology(channel)
+    raw_channel = cast(Any, channel)
+    raw_channel.queue_declare(queue=hot_queue, durable=False, auto_delete=True)
+    raw_channel.queue_bind(
+        queue=hot_queue,
+        exchange=RABBITMQ_EXCHANGE_PRELOADED,
+        arguments={"x-match": "all", "model_class": "small"},
+    )
+    raw_channel.queue_declare(queue=cold_queue, durable=False, auto_delete=True)
+    raw_channel.queue_bind(
+        queue=cold_queue,
+        exchange=RABBITMQ_EXCHANGE_COLDSTART,
+        arguments={"x-match": "all"},
+    )
+
+    try:
+        dispatcher.dispatch_requested_task(
+            channel=channel,
+            event={"task_id": task_id, "model_class": "small", "tier": "pro"},
+            raw_payload=payload,
+        )
+
+        hot_message = raw_channel.basic_get(queue=hot_queue, auto_ack=True)
+        cold_message = raw_channel.basic_get(queue=cold_queue, auto_ack=True)
+
+        assert hot_message[0] is not None
+        assert hot_message[2] == payload
+        assert cold_message[0] is None
+    finally:
+        raw_channel.queue_delete(queue=hot_queue)
+        raw_channel.queue_delete(queue=cold_queue)
+        connection.close()
+
+
+@pytest.mark.integration
+def test_dispatch_falls_back_to_cold_when_no_hot_binding_exists() -> None:
+    task_id = str(uuid4())
+    cold_queue = f"itest-cold-{uuid4()}"
+    payload = dispatcher.encode_task_requested_event(
+        {
+            "task_id": task_id,
+            "user_id": str(uuid4()),
+            "tier": "pro",
+            "mode": "async",
+            "model_class": "large",
+            "x": 3,
+            "y": 4,
+            "cost": 50,
+            "tb_pending_transfer_id": str(uuid4()),
+        }
+    )
+
+    connection, channel = dispatcher.build_rabbitmq_channel(
+        SimpleNamespace(rabbitmq_url=_rabbitmq_url())
+    )
+    dispatcher.declare_dispatch_topology(channel)
+    raw_channel = cast(Any, channel)
+    raw_channel.queue_declare(queue=cold_queue, durable=False, auto_delete=True)
+    raw_channel.queue_bind(
+        queue=cold_queue,
+        exchange=RABBITMQ_EXCHANGE_COLDSTART,
+        arguments={"x-match": "all"},
+    )
+
+    try:
+        dispatcher.dispatch_requested_task(
+            channel=channel,
+            event={"task_id": task_id, "model_class": "large", "tier": "enterprise"},
+            raw_payload=payload,
+        )
+
+        cold_message = raw_channel.basic_get(queue=cold_queue, auto_ack=True)
+
+        assert cold_message[0] is not None
+        assert cold_message[2] == payload
+    finally:
+        raw_channel.queue_delete(queue=cold_queue)
         connection.close()

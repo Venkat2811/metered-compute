@@ -1,6 +1,6 @@
 # Solution 3 - Financial Core
 
-Last updated: 2026-03-26
+Last updated: 2026-03-27
 Scope: `solutions/3_solution`
 
 TigerBeetle + Redpanda + RabbitMQ hot/cold dispatch + CQRS projections
@@ -21,7 +21,8 @@ Current board shape is intentional:
 - bootstrap is complete and verified
 - core contracts and migrations are complete and verified
 - auth + command API skeleton is complete and verified
-- `P0-004` is in progress, starting with TigerBeetle billing primitives
+- `P0-004` is complete and verified
+- `P0-005` is the next active build slice
 - sequencing and proof requirements live inside each epic checklist
 
 ## Baseline Requirements Snapshot
@@ -106,6 +107,6 @@ Priority: `P0` (blocker), `P1` (must-have), `P2` (nice-to-have)
 - `done/P0-001-solution3-repo-bootstrap.md`
 - `done/P0-002-solution3-core-contracts-and-migrations.md`
 - `done/P0-003-solution3-auth-api-submit.md`
-- `in-progress/P0-004-solution3-dispatch-worker-billing.md`
+- `done/P0-004-solution3-dispatch-worker-billing.md`
 - `todo/P0-005-solution3-projections-and-recovery.md`
 - `todo/P0-006-solution3-observability-proof.md`

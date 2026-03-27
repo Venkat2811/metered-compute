@@ -47,13 +47,14 @@ Current proof scope is intentionally narrower than the final RFC scope:
 - compose startup + `/health` and `/ready` smoke checks
 - running-stack OAuth + submit/poll/cancel/admin-RBAC integration checks
 - live infra integration for outbox relay -> Redpanda -> dispatcher -> RabbitMQ publish
+- live infra integration for RabbitMQ preloaded-header preference and cold-fallback routing
 - live infra integration for submit -> TigerBeetle reserve -> outbox relay -> Redpanda -> dispatcher -> RabbitMQ -> worker -> poll completed
 - bootstrap demo smoke
 - one failure-path script check for readiness timeout
 
 ## Current Status
 
-This directory has completed `P0-003` and has substantial `P0-004` slices landed.
+This directory has completed `P0-004` and is ready to move into `P0-005`.
 
 What is already real:
 
@@ -68,16 +69,15 @@ What is already real:
 - TigerBeetle bootstrap on API startup for the platform accounts and seeded users
 - real outbox relay process that drains unpublished command events into Redpanda with publish-after-ack semantics
 - real dispatcher process that consumes `tasks.requested` from Redpanda and republishes to RabbitMQ header exchanges
-- real worker consume loop over the RabbitMQ cold queue with guarded running transition and terminal completion updates
+- real worker consume loop over RabbitMQ cold + warm queues with guarded running transition and terminal completion updates
 - end-to-end TigerBeetle reserve/post/void handling on submit, cancel, success, and failure paths
-- worker runtime seams for cold-start model loading, warm-model registration, and terminal completion updates
+- worker runtime seams for cold-start model loading, warm-model registration, hot-queue activation, and terminal completion updates
 - outbox relay and dispatcher contract seams with unit-tested publish/flush behavior
 - worker-shaped entrypoints for `dispatcher`, `projector`, `reconciler`, `worker`, `watchdog`, and `webhook-worker`
 - isolated test suite in `tests_bootstrap/` covering unit, integration, e2e, and fault slices for the implemented scope
 
 What is not implemented yet:
 
-- warm/preloaded RabbitMQ routing so warm workers preferentially take matching model-class work
 - projector and rebuild flows from the event backbone
 - full CQRS query projection pipeline
 - successful admin top-up path

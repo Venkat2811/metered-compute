@@ -3,7 +3,9 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import signal
+import socket
 import time
 from collections.abc import Awaitable, Callable, Mapping
 from datetime import UTC, datetime
@@ -16,6 +18,7 @@ import tigerbeetle as tb
 from redis.asyncio import Redis
 
 from solution3.constants import (
+    RABBITMQ_EXCHANGE_PRELOADED,
     BillingState,
     ModelClass,
     RequestMode,
@@ -48,6 +51,10 @@ class WorkerBilling(Protocol):
 class WarmRegistry(Protocol):
     async def sadd(self, key: str, value: str) -> int: ...
 
+    async def srem(self, key: str, value: str) -> int: ...
+
+    async def scard(self, key: str) -> int: ...
+
 
 class WorkerQueueMethod(Protocol):
     delivery_tag: int
@@ -56,9 +63,17 @@ class WorkerQueueMethod(Protocol):
 class WorkerQueueChannel(Protocol):
     def basic_ack(self, *, delivery_tag: int) -> None: ...
 
+    def basic_cancel(self, consumer_tag: str) -> None: ...
+
     def basic_nack(self, *, delivery_tag: int, requeue: bool) -> None: ...
 
     def basic_qos(self, *, prefetch_count: int) -> None: ...
+
+    def queue_bind(self, *, queue: str, exchange: str, arguments: dict[str, str]) -> None: ...
+
+    def queue_declare(self, *, queue: str, durable: bool) -> None: ...
+
+    def queue_unbind(self, *, queue: str, exchange: str, arguments: dict[str, str]) -> None: ...
 
     def basic_consume(self, *, queue: str, on_message_callback: object) -> str: ...
 
@@ -73,21 +88,88 @@ class WorkerQueueConnection(Protocol):
     def close(self) -> None: ...
 
 
+class WarmRouteManager(Protocol):
+    def activate(self, model_class: ModelClass) -> None: ...
+
+    def deactivate(self, model_class: ModelClass, *, unbind: bool) -> None: ...
+
+
+class WorkerHotRouteManager:
+    def __init__(
+        self,
+        *,
+        channel: WorkerQueueChannel,
+        on_message_callback: object,
+    ) -> None:
+        self.channel = channel
+        self.on_message_callback = on_message_callback
+        self.consumer_tags: dict[ModelClass, str] = {}
+
+    def activate(self, model_class: ModelClass) -> None:
+        queue = _hot_queue_name(model_class)
+        self.channel.queue_declare(queue=queue, durable=True)
+        self.channel.queue_bind(
+            queue=queue,
+            exchange=RABBITMQ_EXCHANGE_PRELOADED,
+            arguments={"x-match": "all", "model_class": model_class.value},
+        )
+        if model_class not in self.consumer_tags:
+            self.consumer_tags[model_class] = self.channel.basic_consume(
+                queue=queue,
+                on_message_callback=self.on_message_callback,
+            )
+
+    def deactivate(self, model_class: ModelClass, *, unbind: bool) -> None:
+        consumer_tag = self.consumer_tags.pop(model_class, None)
+        if consumer_tag is not None:
+            self.channel.basic_cancel(consumer_tag)
+        if unbind:
+            self.channel.queue_unbind(
+                queue=_hot_queue_name(model_class),
+                exchange=RABBITMQ_EXCHANGE_PRELOADED,
+                arguments={"x-match": "all", "model_class": model_class.value},
+            )
+
+
 class WorkerModelRuntime:
     def __init__(
         self,
         *,
         worker_id: str,
         redis_client: WarmRegistry | None = None,
+        route_manager: WarmRouteManager | None = None,
     ) -> None:
         self.worker_id = worker_id
         self.redis_client = redis_client
+        self.route_manager = route_manager
         self.warm_model: ModelClass | None = None
 
     async def go_warm(self, model_class: ModelClass) -> None:
+        if self.warm_model == model_class:
+            return
+
+        if self.warm_model is not None:
+            await self._drop_warm_registration(self.warm_model)
         self.warm_model = model_class
         if self.redis_client is not None:
             await self.redis_client.sadd(_warm_registry_key(model_class), self.worker_id)
+        if self.route_manager is not None:
+            self.route_manager.activate(model_class)
+
+    async def shutdown(self) -> None:
+        if self.warm_model is None:
+            return
+        await self._drop_warm_registration(self.warm_model)
+        self.warm_model = None
+
+    async def _drop_warm_registration(self, model_class: ModelClass) -> None:
+        remaining = 0
+        if self.redis_client is not None:
+            key = _warm_registry_key(model_class)
+            await self.redis_client.srem(key, self.worker_id)
+            remaining = await self.redis_client.scard(key)
+        if self.route_manager is not None:
+            self.route_manager.deactivate(model_class, unbind=remaining == 0)
 
     async def execute(self, task: TaskCommand) -> dict[str, int]:
         if self.warm_model != task.model_class:
@@ -107,6 +189,14 @@ def _task_state_key(task_id: UUID) -> str:
 
 def _warm_registry_key(model_class: ModelClass) -> str:
     return f"warm:{model_class.value}"
+
+
+def _hot_queue_name(model_class: ModelClass) -> str:
+    return f"hot-{model_class.value}"
+
+
+def _worker_id() -> str:
+    return f"{socket.gethostname()}:{os.getpid()}"
 
 
 def _inference_seconds(model_class: ModelClass) -> float:
@@ -369,6 +459,7 @@ def _main_loop(*, interval_seconds: float, result_ttl_seconds: int) -> None:
         redis_client: Redis[str] | None = None
         connection: WorkerQueueConnection | None = None
         channel = None
+        runtime: WorkerModelRuntime | None = None
 
         try:
 
@@ -381,8 +472,12 @@ def _main_loop(*, interval_seconds: float, result_ttl_seconds: int) -> None:
             db_pool, redis_client = event_loop.run_until_complete(_open_runtime_resources())
             worker_redis = cast(WorkerRedis, redis_client)
             billing = _build_billing(settings)
-            runtime = WorkerModelRuntime(worker_id="solution3-worker", redis_client=redis_client)
             connection, channel = build_rabbitmq_channel(settings.rabbitmq_url)
+            runtime = WorkerModelRuntime(
+                worker_id=_worker_id(),
+                redis_client=redis_client,
+            )
+            runtime_instance = runtime
 
             def _on_message(
                 ch: WorkerQueueChannel,
@@ -393,7 +488,7 @@ def _main_loop(*, interval_seconds: float, result_ttl_seconds: int) -> None:
                 _db_pool: asyncpg.Pool = db_pool,
                 _redis_client: WorkerRedis = worker_redis,
                 _billing: TigerBeetleBilling = billing,
-                _runtime: WorkerModelRuntime = runtime,
+                _runtime: WorkerModelRuntime = runtime_instance,
             ) -> None:
                 handle_delivery(
                     channel=ch,
@@ -407,6 +502,10 @@ def _main_loop(*, interval_seconds: float, result_ttl_seconds: int) -> None:
                     run_async=_event_loop.run_until_complete,
                 )
 
+            runtime.route_manager = WorkerHotRouteManager(
+                channel=channel,
+                on_message_callback=_on_message,
+            )
             channel.basic_qos(prefetch_count=1)
             channel.basic_consume(
                 queue=settings.rabbitmq_queue_cold,
@@ -421,6 +520,8 @@ def _main_loop(*, interval_seconds: float, result_ttl_seconds: int) -> None:
         except Exception as exc:
             logger.exception("worker_loop_failed", error=str(exc))
         finally:
+            if runtime is not None:
+                event_loop.run_until_complete(runtime.shutdown())
             if connection is not None:
                 connection.close()
             if db_pool is not None and redis_client is not None:
