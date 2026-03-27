@@ -270,7 +270,7 @@ services:
     restart: unless-stopped
 
   tb-init:
-    image: ghcr.io/tigerbeetle/tigerbeetle:0.16.68
+    image: ghcr.io/tigerbeetle/tigerbeetle:0.16.78
     entrypoint: ["sh", "-c"]
     command:
       - |
@@ -283,7 +283,7 @@ services:
       - tbdata:/data
 
   tigerbeetle:
-    image: ghcr.io/tigerbeetle/tigerbeetle:0.16.68
+    image: ghcr.io/tigerbeetle/tigerbeetle:0.16.78
     command: ["start", "--addresses=0.0.0.0:3000", "/data/0_0.tigerbeetle"]
     cap_add:
       - IPC_LOCK

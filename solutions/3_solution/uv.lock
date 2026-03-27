@@ -123,7 +123,7 @@ requires-dist = [
     { name = "pyjwt", specifier = "==2.12.1" },
     { name = "redis", specifier = "==6.4.0" },
     { name = "structlog", specifier = "==25.5.0" },
-    { name = "tigerbeetle", specifier = "==0.16.68" },
+    { name = "tigerbeetle", specifier = "==0.16.78" },
     { name = "uuid6", specifier = "==2025.0.1" },
     { name = "uvicorn", extras = ["standard"], specifier = "==0.40.0" },
 ]
@@ -1141,10 +1141,10 @@ wheels = [
 
 [[package]]
 name = "tigerbeetle"
-version = "0.16.68"
+version = "0.16.78"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/be/eb/b7f82038ac16f7a951d83c98a70317bb30afd00d7179070b2a52b176cfe3/tigerbeetle-0.16.68-py3-none-any.whl", hash = "sha256:963f84a2c80ce8935f0857dc48685dbe97305bd677bece8e2c73e058a3e190a6", size = 1603455, upload-time = "2026-01-12T11:58:45.211Z" },
+    { url = "https://files.pythonhosted.org/packages/57/7d/453e06d6a2d46e89d04b3380de3cf5a2a1293d325e07dc323c54aad9e65c/tigerbeetle-0.16.78-py3-none-any.whl", hash = "sha256:3d836563c6b38819ed8526bdb27dc28fe4bafb704c65d6f86b3183821aebcac1", size = 1618064, upload-time = "2026-03-23T13:59:56.188Z" },
 ]
 
 [[package]]

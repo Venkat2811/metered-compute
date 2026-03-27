@@ -117,10 +117,10 @@ requires-dist = [
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = "==7.0.0" },
     { name = "radon", marker = "extra == 'dev'", specifier = "==6.0.1" },
     { name = "redis", specifier = "==6.4.0" },
-    { name = "restate-sdk", specifier = "==0.14.2" },
+    { name = "restate-sdk", specifier = "==0.16.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = "==0.11.12" },
     { name = "structlog", specifier = "==25.5.0" },
-    { name = "tigerbeetle", specifier = "==0.16.68" },
+    { name = "tigerbeetle", specifier = "==0.16.78" },
     { name = "uuid6", specifier = "==2025.0.1" },
     { name = "uvicorn", extras = ["standard"], specifier = "==0.40.0" },
 ]
@@ -782,16 +782,16 @@ wheels = [
 
 [[package]]
 name = "restate-sdk"
-version = "0.14.2"
+version = "0.16.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/2c/b7/ad6e23a008cde10715f33162a01ea12fed252758a8120555b759f5884bc6/restate_sdk-0.14.2.tar.gz", hash = "sha256:973cfa58c922ce3fe8fdd45fbdeeef5dc43436852af0418fa43e949e8ce4aace", size = 248402, upload-time = "2026-01-15T15:53:56.28Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/76/99/f2feb22033eb0c53182e9026a83263e041211982c3ac0aadabf3278fbefe/restate_sdk-0.16.0.tar.gz", hash = "sha256:b032b5ef363a60ff730639df53be9fff84dbb5a34ecda7c1d48795d445074ce9", size = 252891, upload-time = "2026-03-17T10:03:37.28Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a5/cc/ea452a38a66b718f820c572fac6271d9e2683a411cce629b429dd21e8e17/restate_sdk-0.14.2-cp312-cp312-macosx_10_12_x86_64.whl", hash = "sha256:102f755e43b50f19d6d1ca868cf7783f7c5e6ce24b894a0951ef7ed6577bf575", size = 1863351, upload-time = "2026-01-15T15:53:26.892Z" },
-    { url = "https://files.pythonhosted.org/packages/5f/c0/d54fe5c6f90d0bbfcc1fded9b591aad9dc91b856580b66a8c06a93cdfba7/restate_sdk-0.14.2-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:4666a128976f5247cc4c43942c3c52f5b4322f928284122f07a9512274dd8eee", size = 1806356, upload-time = "2026-01-15T15:53:21.46Z" },
-    { url = "https://files.pythonhosted.org/packages/c7/ca/64df8b0d19cac56d20c7b31dffad0a3544b91e186d2648af32126935a5b1/restate_sdk-0.14.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:ff67ba763a276740bf8d3a108842e20a33e80449956b489521a64af4546eb11c", size = 2001619, upload-time = "2026-01-15T15:53:14.774Z" },
-    { url = "https://files.pythonhosted.org/packages/6e/e4/71da75ab77fa80de23ee54e4fcc774a17236c3d0c0aed4710468cbda1da0/restate_sdk-0.14.2-cp312-cp312-manylinux_2_28_aarch64.whl", hash = "sha256:5e2ebe9559d16ef95dae0ff7f49da80788018b78581f5f57c7a8df5eb39ff244", size = 2039082, upload-time = "2026-01-15T15:53:02.831Z" },
-    { url = "https://files.pythonhosted.org/packages/f2/f3/4a3f67ba62b1fb3ddb28b2f4e12614cccb53a12df213931fe39eaff892df/restate_sdk-0.14.2-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:cb2be964bb01cd824d762706f2884d48f0edea27525b8a1f66d942442b35d66a", size = 2228553, upload-time = "2026-01-15T15:53:33.101Z" },
-    { url = "https://files.pythonhosted.org/packages/f4/89/811a132fe40aeea78028bd53dd76ddf5a4130071bb837a76d5b23da697e9/restate_sdk-0.14.2-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:c1973fbf177176191fc564bb03c1274d52e3c406eaf92ca5e2eb97583fd06ba7", size = 2272547, upload-time = "2026-01-15T15:53:47.124Z" },
+    { url = "https://files.pythonhosted.org/packages/f6/1f/ee5d4e5058a3ce36c1602f92b935bd31803b8a00fd6de895c84187b01423/restate_sdk-0.16.0-cp312-cp312-macosx_10_12_x86_64.whl", hash = "sha256:a0b93bee6ceb3f4facac9f15bf5bdb17fe85ea3fe1d1bfee141a12d32be399fc", size = 1942648, upload-time = "2026-03-17T10:03:09.307Z" },
+    { url = "https://files.pythonhosted.org/packages/6c/36/54456fc9f59748fd5482decd5d5368440654468e5f008372dffc3ff92b8c/restate_sdk-0.16.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:fce8237b9d15900cc16d04351fb9c54002543c60ec9a4cf740b57153529146fb", size = 1870811, upload-time = "2026-03-17T10:03:03.818Z" },
+    { url = "https://files.pythonhosted.org/packages/24/fa/762f0b18b3b195951be66677283bb347185402b45b6b93153cd1f8dc54a6/restate_sdk-0.16.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:67ba2693b554d20d94dc07497f48d27119ec8490aacc94a949e35288d813e8b8", size = 2084166, upload-time = "2026-03-17T10:02:57.603Z" },
+    { url = "https://files.pythonhosted.org/packages/ee/26/601b7b8a2da4b8a28443fbd68debb817c355bb1d152b0f137a3f58ed9508/restate_sdk-0.16.0-cp312-cp312-manylinux_2_28_aarch64.whl", hash = "sha256:44fdcfc26152f8c0e3a67360874cc23b909833c98e0201d9f5c8574038ca690e", size = 2113941, upload-time = "2026-03-17T10:02:45.414Z" },
+    { url = "https://files.pythonhosted.org/packages/27/eb/cd8ef3e061b17cc3c3700e05c8ea3a35593efe76943c4d07dc5b14d2d83a/restate_sdk-0.16.0-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:12fe27204f4e35ccf5d77c8dd596e85180380de65ed982dcd855e12c1688802a", size = 2288715, upload-time = "2026-03-17T10:03:15.814Z" },
+    { url = "https://files.pythonhosted.org/packages/c3/80/a757edcd0ad4b45f4644539c5e1669f7d1e50e9e23a55ed680d07fb1611f/restate_sdk-0.16.0-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:cd4670e0d10142d4ba1335a3ecc6e65c2f8a73953d857c92d056f3aff872531b", size = 2371719, upload-time = "2026-03-17T10:03:28.052Z" },
 ]
 
 [[package]]
@@ -883,10 +883,10 @@ wheels = [
 
 [[package]]
 name = "tigerbeetle"
-version = "0.16.68"
+version = "0.16.78"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/be/eb/b7f82038ac16f7a951d83c98a70317bb30afd00d7179070b2a52b176cfe3/tigerbeetle-0.16.68-py3-none-any.whl", hash = "sha256:963f84a2c80ce8935f0857dc48685dbe97305bd677bece8e2c73e058a3e190a6", size = 1603455, upload-time = "2026-01-12T11:58:45.211Z" },
+    { url = "https://files.pythonhosted.org/packages/57/7d/453e06d6a2d46e89d04b3380de3cf5a2a1293d325e07dc323c54aad9e65c/tigerbeetle-0.16.78-py3-none-any.whl", hash = "sha256:3d836563c6b38819ed8526bdb27dc28fe4bafb704c65d6f86b3183821aebcac1", size = 1618064, upload-time = "2026-03-23T13:59:56.188Z" },
 ]
 
 [[package]]

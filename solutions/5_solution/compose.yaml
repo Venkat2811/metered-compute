@@ -25,7 +25,7 @@ services:
       retries: 10
 
   tb-init:
-    image: ghcr.io/tigerbeetle/tigerbeetle:0.16.68
+    image: ghcr.io/tigerbeetle/tigerbeetle:0.16.78
     entrypoint: ["sh", "-c"]
     command:
       - |
@@ -37,7 +37,7 @@ services:
     volumes: ["tbdata:/data"]
 
   tigerbeetle:
-    image: ghcr.io/tigerbeetle/tigerbeetle:0.16.68
+    image: ghcr.io/tigerbeetle/tigerbeetle:0.16.78
     command: ["start", "--addresses=0.0.0.0:3000", "/data/0_0.tigerbeetle"]
     ports: ["3000:3000"]
     cap_add: [IPC_LOCK]
@@ -52,7 +52,7 @@ services:
       retries: 10
 
   restate:
-    image: restatedev/restate:latest
+    image: docker.restate.dev/restatedev/restate:1.6.2
     ports:
       - "8080:8080"   # ingress
       - "9070:9070"   # admin/UI
