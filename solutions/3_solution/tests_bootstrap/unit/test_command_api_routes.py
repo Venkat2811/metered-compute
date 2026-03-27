@@ -343,6 +343,31 @@ def test_poll_returns_hot_path_task_state_from_redis(
     assert response.json()["status"] == "RUNNING"
 
 
+def test_poll_decodes_cached_terminal_result_from_redis(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task_id = uuid7()
+    redis_client = FakeRedis()
+    redis_client.hashes[f"task:{task_id}"] = {
+        "user_id": str(_auth_user().user_id),
+        "status": "COMPLETED",
+        "billing_state": "CAPTURED",
+        "result": '{"sum": 5}',
+    }
+
+    client, _, _ = _client(monkeypatch, current_user=_auth_user(), redis_client=redis_client)
+    with client:
+        response = client.get(
+            "/v1/poll",
+            params={"task_id": str(task_id)},
+            headers={"Authorization": "Bearer jwt.header.signature"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "COMPLETED"
+    assert response.json()["result"] == {"sum": 5}
+
+
 def test_poll_returns_not_found_for_foreign_task(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

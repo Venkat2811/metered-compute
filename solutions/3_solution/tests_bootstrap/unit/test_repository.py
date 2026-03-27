@@ -374,8 +374,43 @@ async def test_apply_task_projection_upserts_view_and_records_checkpoint() -> No
         },
     )
 
+    assert view is not None
     assert view.status == TaskStatus.COMPLETED
     assert view.billing_state == BillingState.CAPTURED
     assert view.projection_version == 14
     assert connection.execute_calls[0][1] == (event_id, "projector")
     assert connection.execute_calls[1][1] == ("projector", "tasks.completed", 0, 14)
+
+
+@pytest.mark.asyncio
+async def test_reset_projection_state_clears_only_projector_state() -> None:
+    connection = FakeConnection()
+    pool = FakePool(connection=connection)
+
+    await repository.reset_projection_state(
+        pool,
+        consumer_names=("projector", "projector-rebuild"),
+        projector_names=("projector", "projector-rebuild"),
+    )
+
+    assert connection.execute_calls[0] == ("TRUNCATE query.task_query_view", ())
+    assert "DELETE FROM cmd.inbox_events" in connection.execute_calls[1][0]
+    assert connection.execute_calls[1][1] == (["projector", "projector-rebuild"],)
+    assert "DELETE FROM cmd.projection_checkpoints" in connection.execute_calls[2][0]
+    assert connection.execute_calls[2][1] == (["projector", "projector-rebuild"],)
+
+
+@pytest.mark.asyncio
+async def test_rebuild_task_query_view_from_commands_returns_inserted_row_count() -> None:
+    connection = FakeConnection()
+    connection.fetch_results = [[{"task_id": uuid4()}, {"task_id": uuid4()}]]
+    pool = FakePool(connection=connection)
+
+    inserted = await repository.rebuild_task_query_view_from_commands(pool)
+
+    assert inserted == 2
+    assert len(connection.fetch_calls) == 1
+    query, args = connection.fetch_calls[0]
+    assert "INSERT INTO query.task_query_view" in query
+    assert "FROM cmd.task_commands" in query
+    assert args == ()

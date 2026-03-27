@@ -22,7 +22,7 @@ Current board shape is intentional:
 - core contracts and migrations are complete and verified
 - auth + command API skeleton is complete and verified
 - `P0-004` is complete and verified
-- `P0-005` is in progress, starting with projector/query-view materialization
+- `P0-005` is in progress, with projector + rebuild landed and reconciler/webhook remaining
 - sequencing and proof requirements live inside each epic checklist
 
 ## Baseline Requirements Snapshot

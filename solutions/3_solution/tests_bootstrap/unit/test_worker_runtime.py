@@ -199,6 +199,7 @@ async def test_handle_successful_completion_posts_tb_and_updates_cache(
     assert finalized_calls[0]["billing_state"] == BillingState.CAPTURED
     assert redis.decrements == [f"active:{task.user_id}"]
     assert redis.hashes[f"task:{task.task_id}"]["status"] == "COMPLETED"
+    assert redis.hashes[f"task:{task.task_id}"]["result"] == '{"sum": 5}'
 
 
 @pytest.mark.asyncio

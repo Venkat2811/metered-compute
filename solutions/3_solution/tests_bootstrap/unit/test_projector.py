@@ -163,7 +163,44 @@ async def test_project_message_applies_projection_and_updates_cache(
     assert apply_calls[0]["committed_offset"] == 14
     assert redis.hashes[f"task:{task_id}"]["status"] == "COMPLETED"
     assert redis.hashes[f"task:{task_id}"]["billing_state"] == "CAPTURED"
+    assert redis.hashes[f"task:{task_id}"]["result"] == '{"sum": 5}'
     assert redis.expirations[f"task:{task_id}"] == 600
+
+
+@pytest.mark.asyncio
+async def test_project_message_skips_events_when_source_task_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task_id = uuid4()
+    message = FakeMessage(
+        topic="tasks.completed",
+        partition=0,
+        offset=21,
+        payload={"task_id": str(task_id), "result": {"sum": 5}, "error": None},
+        headers=[("event_id", str(uuid4()).encode("utf-8"))],
+    )
+    redis = FakeRedis()
+
+    async def fake_seen(*_args: object, **_kwargs: object) -> bool:
+        return False
+
+    async def fake_apply(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    monkeypatch.setattr(projector, "is_inbox_event_processed", fake_seen)
+    monkeypatch.setattr(projector, "apply_task_projection", fake_apply)
+
+    projected = await projector.project_message(
+        db_pool=cast(asyncpg.Pool, object()),
+        redis_client=cast(projector.ProjectorRedis, redis),
+        consumer_name="projector",
+        projector_name="projector",
+        message=cast(projector.ProjectorMessage, message),
+        task_result_ttl_seconds=600,
+    )
+
+    assert projected is False
+    assert redis.hashes == {}
 
 
 def test_project_polled_messages_applies_batch_and_commits_once(

@@ -102,7 +102,12 @@ def _decode_header_value(headers: Sequence[tuple[str, bytes | str | None]], key:
     return None
 
 
-def build_redpanda_consumer(settings: ProjectorSettings) -> ProjectorConsumer:
+def build_redpanda_consumer(
+    settings: ProjectorSettings,
+    *,
+    group_id: str = "solution3-projector",
+    auto_offset_reset: str = "earliest",
+) -> ProjectorConsumer:
     if KafkaConsumer is None:
         raise RuntimeError("kafka-python is not installed")
 
@@ -116,9 +121,9 @@ def build_redpanda_consumer(settings: ProjectorSettings) -> ProjectorConsumer:
 
     consumer = KafkaConsumer(
         bootstrap_servers=bootstrap_servers,
-        group_id="solution3-projector",
+        group_id=group_id,
         enable_auto_commit=False,
-        auto_offset_reset="earliest",
+        auto_offset_reset=auto_offset_reset,
     )
     consumer.subscribe(
         [
@@ -146,6 +151,8 @@ async def _cache_projected_view(
         "status": task.status.value,
         "billing_state": task.billing_state.value,
     }
+    if task.result is not None:
+        mapping["result"] = json.dumps(task.result)
     if task.error is not None:
         mapping["error"] = task.error
     await redis_client.hset(_task_state_key(task.task_id), mapping=mapping)
@@ -188,6 +195,14 @@ async def project_message(
         event_id=event_id,
         event=event,
     )
+    if projected is None:
+        logger.warning(
+            "projector_source_task_missing",
+            task_id=event.get("task_id"),
+            topic=message.topic,
+            event_id=str(event_id),
+        )
+        return False
     await _cache_projected_view(
         redis_client=redis_client,
         task=projected,

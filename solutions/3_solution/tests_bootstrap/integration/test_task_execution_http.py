@@ -74,6 +74,38 @@ def _delete_task_cache_key(task_id: str) -> None:
     )
 
 
+def _compose(*args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["docker", "compose", *args],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
+async def _reset_projection_state_in_postgres() -> None:
+    connection = await asyncpg.connect(dsn=_postgres_dsn())
+    try:
+        await connection.execute("TRUNCATE query.task_query_view")
+        await connection.execute(
+            """
+            DELETE FROM cmd.inbox_events
+            WHERE consumer_name = ANY($1::text[])
+            """,
+            ["projector", "projector-rebuild"],
+        )
+        await connection.execute(
+            """
+            DELETE FROM cmd.projection_checkpoints
+            WHERE projector_name = ANY($1::text[])
+            """,
+            ["projector", "projector-rebuild"],
+        )
+    finally:
+        await connection.close()
+
+
 @pytest.mark.integration
 def test_submit_completes_over_live_worker_path() -> None:
     access_token = _oauth_access_token(api_key=ALICE_API_KEY)
@@ -165,3 +197,71 @@ def test_poll_falls_back_to_projected_query_view_when_task_cache_is_missing() ->
     assert payload["status"] == "COMPLETED"
     assert payload["billing_state"] == "CAPTURED"
     assert payload["result"] == {"sum": 9}
+
+
+@pytest.mark.integration
+def test_rebuilder_replays_redpanda_log_and_restores_projection_state() -> None:
+    access_token = _oauth_access_token(api_key=ALICE_API_KEY)
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Idempotency-Key": f"itest-rebuild-{uuid.uuid4()}",
+    }
+
+    submit = httpx.post(
+        f"{BASE_URL}/v1/task",
+        headers=headers,
+        json={"x": 6, "y": 7},
+        timeout=10.0,
+    )
+    assert submit.status_code == 201, submit.text
+    task_id = submit.json()["task_id"]
+
+    deadline = time.time() + 30.0
+    while time.time() < deadline:
+        poll = httpx.get(
+            f"{BASE_URL}/v1/poll",
+            params={"task_id": task_id},
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=10.0,
+        )
+        assert poll.status_code == 200, poll.text
+        if poll.json()["status"] == "COMPLETED":
+            break
+        time.sleep(0.5)
+    else:
+        raise AssertionError("task did not complete before rebuild test")
+
+    _compose("stop", "projector")
+    try:
+        asyncio.run(_reset_projection_state_in_postgres())
+        _delete_task_cache_key(task_id)
+        _compose(
+            "run",
+            "--rm",
+            "--no-deps",
+            "--build",
+            "api",
+            "python",
+            "-m",
+            "solution3.workers.rebuilder",
+            "--from-beginning",
+            "--poll-timeout-ms",
+            "500",
+            "--max-empty-polls",
+            "4",
+        )
+        _delete_task_cache_key(task_id)
+    finally:
+        _compose("up", "-d", "projector")
+
+    fallback_poll = httpx.get(
+        f"{BASE_URL}/v1/poll",
+        params={"task_id": task_id},
+        headers={"Authorization": f"Bearer {access_token}"},
+        timeout=10.0,
+    )
+    assert fallback_poll.status_code == 200, fallback_poll.text
+    payload = fallback_poll.json()
+    assert payload["status"] == "COMPLETED"
+    assert payload["billing_state"] == "CAPTURED"
+    assert payload["result"] == {"sum": 13}

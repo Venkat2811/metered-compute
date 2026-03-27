@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import timedelta
 from uuid import UUID
 
@@ -27,6 +28,17 @@ def _task_state_key(task_id: UUID) -> str:
 
 def _authorized(*, current_user: AuthUser, user_id: str) -> bool:
     return current_user.role == UserRole.ADMIN or user_id == str(current_user.user_id)
+
+
+def _cached_result(task_state: dict[str, str]) -> dict[str, object] | None:
+    raw_result = task_state.get("result")
+    if raw_result is None:
+        return None
+    try:
+        decoded = json.loads(raw_result)
+    except json.JSONDecodeError:
+        return None
+    return decoded if isinstance(decoded, dict) else None
 
 
 def _command_poll_response(*, task: TaskCommand, ttl_seconds: int) -> PollTaskResponse:
@@ -77,7 +89,7 @@ def register_task_read_routes(router: APIRouter) -> None:
                     task_id=task_id,
                     status=task_state.get("status", TaskStatus.PENDING.value),
                     billing_state=task_state.get("billing_state", "RESERVED"),
-                    result=None,
+                    result=_cached_result(task_state),
                     error=task_state.get("error"),
                     expires_at=None,
                 )

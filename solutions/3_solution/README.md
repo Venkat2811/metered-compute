@@ -50,12 +50,13 @@ Current proof scope is intentionally narrower than the final RFC scope:
 - live infra integration for RabbitMQ preloaded-header preference and cold-fallback routing
 - live infra integration for submit -> TigerBeetle reserve -> outbox relay -> Redpanda -> dispatcher -> RabbitMQ -> worker -> poll completed
 - live infra integration for `poll` query-view fallback after evicting the Redis task key
+- live infra integration for projection reset -> Redpanda replay rebuild -> `poll` restored from rebuilt query state
 - bootstrap demo smoke
 - one failure-path script check for readiness timeout
 
 ## Current Status
 
-This directory has completed `P0-004` and has the first `P0-005` projector/query-view slice landed.
+This directory has completed `P0-004` and now has the projector + rebuild slices of `P0-005` landed.
 
 What is already real:
 
@@ -75,20 +76,19 @@ What is already real:
 - worker runtime seams for cold-start model loading, warm-model registration, hot-queue activation, and terminal completion updates
 - real projector process that consumes Redpanda task events into `query.task_query_view`, inbox dedup, checkpoints, and Redis write-through
 - live poll fallback from `query.task_query_view` when the Redis task key is missing
+- rebuild tooling that can restore the projection from SQL or replay the Redpanda task log from offset 0
 - outbox relay and dispatcher contract seams with unit-tested publish/flush behavior
 - worker-shaped entrypoints for `dispatcher`, `projector`, `reconciler`, `worker`, `watchdog`, and `webhook-worker`
 - isolated test suite in `tests_bootstrap/` covering unit, integration, e2e, and fault slices for the implemented scope
 
 What is not implemented yet:
 
-- full CQRS query projection pipeline
-- rebuild tooling for replaying the projection from the event log or SQL
 - reconciler flow for stale reserved states
 - webhook worker delivery with retry/dead-letter handling
 - successful admin top-up path
 - scenario harness and load profile
 
-Those land in `P0-004` onward. The kanban reflects the real ship order.
+Those land in the remaining `P0-005` / `P0-006` slices. The kanban reflects the real ship order.
 
 ## Lay Of The Land
 
@@ -160,6 +160,8 @@ make help
 make quality
 make coverage
 make migrate
+make rebuild-query
+make replay-query
 pytest tests_bootstrap/unit
 pytest tests_bootstrap/integration -m integration
 make up

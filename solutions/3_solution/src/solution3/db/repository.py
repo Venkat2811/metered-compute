@@ -395,7 +395,7 @@ async def apply_task_projection(
     committed_offset: int,
     event_id: UUID,
     event: Mapping[str, Any],
-) -> TaskQueryView:
+) -> TaskQueryView | None:
     task_id = UUID(str(event["task_id"]))
     overwrite_terminal_fields = topic in TERMINAL_PROJECTION_TOPICS
     result_payload = event.get("result") if overwrite_terminal_fields else None
@@ -465,7 +465,7 @@ async def apply_task_projection(
             committed_offset,
         )
         if projected_row is None:
-            raise RuntimeError("projection source task was not found")
+            return None
 
         await connection.execute(
             """
@@ -496,3 +496,70 @@ async def apply_task_projection(
             committed_offset,
         )
         return _map_task_query_view(projected_row)
+
+
+async def reset_projection_state(
+    pool: asyncpg.Pool,
+    *,
+    consumer_names: tuple[str, ...],
+    projector_names: tuple[str, ...],
+) -> None:
+    async with pool.acquire() as connection, connection.transaction():
+        await connection.execute("TRUNCATE query.task_query_view")
+        if consumer_names:
+            await connection.execute(
+                """
+                DELETE FROM cmd.inbox_events
+                WHERE consumer_name = ANY($1::text[])
+                """,
+                list(consumer_names),
+            )
+        if projector_names:
+            await connection.execute(
+                """
+                DELETE FROM cmd.projection_checkpoints
+                WHERE projector_name = ANY($1::text[])
+                """,
+                list(projector_names),
+            )
+
+
+async def rebuild_task_query_view_from_commands(pool: asyncpg.Pool) -> int:
+    async with pool.acquire() as connection, connection.transaction():
+        rows = await connection.fetch(
+            """
+            INSERT INTO query.task_query_view(
+              task_id,
+              user_id,
+              tier,
+              mode,
+              model_class,
+              status,
+              billing_state,
+              result,
+              error,
+              runtime_ms,
+              projection_version,
+              created_at,
+              updated_at
+            )
+            SELECT
+              task_id,
+              user_id,
+              tier,
+              mode,
+              model_class,
+              status,
+              billing_state,
+              NULL,
+              NULL,
+              NULL,
+              0,
+              created_at,
+              updated_at
+            FROM cmd.task_commands
+            ORDER BY created_at, task_id
+            RETURNING task_id
+            """
+        )
+    return len(rows)

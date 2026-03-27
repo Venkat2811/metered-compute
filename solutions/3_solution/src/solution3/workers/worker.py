@@ -311,7 +311,7 @@ async def handle_task_completion(
             "model_class": task.model_class.value,
         }
         if result is not None:
-            mapping["result"] = str(result)
+            mapping["result"] = json.dumps(result)
         if error is not None:
             mapping["error"] = error
         await redis_client.hset(_task_state_key(task.task_id), mapping=mapping)

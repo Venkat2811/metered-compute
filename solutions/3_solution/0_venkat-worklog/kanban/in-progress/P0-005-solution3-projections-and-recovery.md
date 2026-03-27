@@ -4,12 +4,12 @@ Objective:
 
 Add query-side materialization and recovery mechanisms so Sol 3 is operational under stale states and infra churn.
 
-Status: in progress as of 2026-03-27. The first slice is green: Redpanda task events now project into `query.task_query_view`, inbox dedup is in place, projection checkpoints advance, and live poll fallback works after deleting the Redis task key. Remaining gaps are rebuild tooling, stale-state reconciliation, and webhook delivery.
+Status: in progress as of 2026-03-27. The projector and rebuild slices are green: Redpanda task events now project into `query.task_query_view`, inbox dedup is in place, projection checkpoints advance, live poll fallback works after deleting the Redis task key, and the projection can now be rebuilt either from SQL or by replaying Redpanda from offset `0`. Remaining gaps are stale-state reconciliation and webhook delivery.
 
 Acceptance criteria:
 
 - [x] Projector consumes command events into query view and checkpoints offsets.
-- [ ] Rebuilder mode can replay from topic start and restore query view.
+- [x] Rebuilder mode can replay from topic start and restore query view.
 - [ ] Reconciler resolves stale reserved states and pending terminal drifts.
 - [ ] Webhook worker dispatches callbacks with retry/dead-letter policy.
 
@@ -31,7 +31,7 @@ Checklist:
   - dedupe via inbox table
   - write view + optional Redis cache
   - checkpoint updates.
-- [ ] Add `src/solution3/workers/rebuilder.py` command:
+- [x] Add `src/solution3/workers/rebuilder.py` command:
   - support `--from-beginning` mode.
 - [ ] Add `src/solution3/workers/reconciler.py`:
   - scan stale `RESERVED` tasks
@@ -42,6 +42,7 @@ Checklist:
   - retry policy and exponential backoff
   - dead-letter to separate structure.
 - [x] Add integration test for projector catch-up and query-view fallback under Redis cache loss.
+- [x] Add integration test for Redpanda replay rebuild after projection reset.
 - [ ] Add integration test for reconciler drift fix.
 
 Completion criteria:
