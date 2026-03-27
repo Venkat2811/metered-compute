@@ -43,8 +43,6 @@ def test_runtime_constants_expose_sql_literals_and_defaults() -> None:
         "task.failed",
         "task.cancelled",
         "task.expired",
-        "billing.captured",
-        "billing.released",
     )
 
 

@@ -39,8 +39,3 @@ scrape_configs:
     static_configs:
       - targets: ["dispatcher:9600"]
     metrics_path: /metrics
-
-  - job_name: watchdog
-    static_configs:
-      - targets: ["watchdog:9700"]
-    metrics_path: /metrics

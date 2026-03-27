@@ -33,8 +33,10 @@ from solution3.services.auth import (
     runtime_state_from_request,
 )
 from solution3.services.billing import ReserveCreditsResult
+from solution3.utils.logging import get_logger
 
 AUTHENTICATED_USER = Depends(require_authenticated_user)
+logger = get_logger("solution3.task_write")
 
 
 @dataclass(frozen=True)
@@ -339,16 +341,6 @@ def register_task_write_routes(router: APIRouter) -> None:
                 message="Billing backend unavailable",
             )
 
-        released = await _release_pending_transfer(
-            request=request, pending_transfer_id=command.tb_pending_transfer_id
-        )
-        if not released:
-            return api_error_response(
-                status_code=503,
-                code="SERVICE_DEGRADED",
-                message="Billing backend unavailable",
-            )
-
         cancelled = await cancel_task_command(runtime.db_pool, task_id=task_id)
         if not cancelled:
             return api_error_response(
@@ -356,6 +348,26 @@ def register_task_write_routes(router: APIRouter) -> None:
                 code="CONFLICT",
                 message="Task can no longer be cancelled",
             )
+
+        try:
+            released = await _release_pending_transfer(
+                request=request,
+                pending_transfer_id=command.tb_pending_transfer_id,
+                required=False,
+            )
+        except Exception:
+            logger.warning(
+                "solution3_task_cancel_billing_void_failed",
+                task_id=str(task_id),
+                user_id=str(command.user_id),
+            )
+        else:
+            if not released:
+                logger.warning(
+                    "solution3_task_cancel_billing_void_skipped",
+                    task_id=str(task_id),
+                    user_id=str(command.user_id),
+                )
 
         redis_client = runtime.redis_client
         if redis_client is not None:

@@ -20,8 +20,6 @@ from solution3.constants import (
     RABBITMQ_QUEUE_HOT_LARGE,
     RABBITMQ_QUEUE_HOT_MEDIUM,
     RABBITMQ_QUEUE_HOT_SMALL,
-    REDPANDA_TOPIC_BILLING_CAPTURED,
-    REDPANDA_TOPIC_BILLING_RELEASED,
     REDPANDA_TOPIC_TASK_CANCELLED,
     REDPANDA_TOPIC_TASK_COMPLETED,
     REDPANDA_TOPIC_TASK_EXPIRED,
@@ -82,7 +80,6 @@ class AppSettings(BaseSettings):
     reconciler_metrics_port: int = 9400
     webhook_metrics_port: int = 9500
     dispatcher_metrics_port: int = 9600
-    watchdog_metrics_port: int = 9700
 
     postgres_dsn: PostgresDsn
     redis_url: RedisDsn
@@ -101,8 +98,6 @@ class AppSettings(BaseSettings):
     redpanda_topic_task_failed: str = REDPANDA_TOPIC_TASK_FAILED
     redpanda_topic_task_cancelled: str = REDPANDA_TOPIC_TASK_CANCELLED
     redpanda_topic_task_expired: str = REDPANDA_TOPIC_TASK_EXPIRED
-    redpanda_topic_billing_captured: str = REDPANDA_TOPIC_BILLING_CAPTURED
-    redpanda_topic_billing_released: str = REDPANDA_TOPIC_BILLING_RELEASED
 
     rabbitmq_exchange_preloaded: str = RABBITMQ_EXCHANGE_PRELOADED
     rabbitmq_exchange_coldstart: str = RABBITMQ_EXCHANGE_COLDSTART

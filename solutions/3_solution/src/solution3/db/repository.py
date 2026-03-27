@@ -275,6 +275,7 @@ async def record_admin_credit_topup(
     admin_user_id: UUID,
     api_key: str,
     new_balance: int,
+    transfer_id: UUID,
 ) -> None:
     async with pool.acquire() as connection, connection.transaction():
         await connection.execute(
@@ -293,6 +294,7 @@ async def record_admin_credit_topup(
                     "admin_user_id": str(admin_user_id),
                     "api_key": api_key,
                     "new_balance": new_balance,
+                    "transfer_id": str(transfer_id),
                 }
             ),
         )

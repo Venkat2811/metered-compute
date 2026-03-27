@@ -515,7 +515,7 @@ def test_cancel_conflict_on_terminal_task(
     monkeypatch.setattr(task_write_routes, "cancel_task_command", fake_cancel)
     monkeypatch.setattr(task_write_routes, "get_task_command", fake_get_task_command)
 
-    client, _, _ = _client(monkeypatch, current_user=_auth_user())
+    client, _, billing = _client(monkeypatch, current_user=_auth_user())
     with client:
         response = client.post(
             f"/v1/task/{uuid7()}/cancel",
@@ -523,6 +523,69 @@ def test_cancel_conflict_on_terminal_task(
         )
 
     assert response.status_code == 409
+    assert billing.void_calls == []
+
+
+def test_cancel_idempotent_when_called_repeatedly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from solution3.api import task_write_routes
+
+    command_id = uuid7()
+    user_id = _auth_user().user_id
+    task_state: dict[str, object] = {
+        "status": TaskStatus.PENDING,
+        "billing_state": BillingState.RESERVED,
+    }
+    cancel_calls: list[int] = []
+    release_calls: list[int] = []
+
+    async def fake_get_task_command(*_: object, **__: object) -> TaskCommand:
+        return _task_command(
+            task_id=command_id,
+            user_id=user_id,
+            status=cast(TaskStatus, task_state["status"]),
+            billing_state=cast(BillingState, task_state["billing_state"]),
+        )
+
+    async def fake_cancel(*_: object, **__: object) -> bool:
+        cancel_calls.append(1)
+        if (
+            task_state["status"] == TaskStatus.PENDING
+            and task_state["billing_state"] == BillingState.RESERVED
+        ):
+            task_state["status"] = TaskStatus.CANCELLED
+            task_state["billing_state"] = BillingState.RELEASED
+            return True
+        return False
+
+    async def fake_release(*_: object, **__: object) -> bool:
+        release_calls.append(1)
+        return True
+
+    monkeypatch.setattr(task_write_routes, "get_task_command", fake_get_task_command)
+    monkeypatch.setattr(task_write_routes, "cancel_task_command", fake_cancel)
+    monkeypatch.setattr(task_write_routes, "_release_pending_transfer", fake_release)
+
+    client, _, _ = _client(monkeypatch, current_user=_auth_user())
+
+    with client:
+        first = client.post(
+            f"/v1/task/{command_id}/cancel",
+            headers={"Authorization": "Bearer jwt.header.signature"},
+        )
+    assert first.status_code == 200
+
+    with client:
+        second = client.post(
+            f"/v1/task/{command_id}/cancel",
+            headers={"Authorization": "Bearer jwt.header.signature"},
+        )
+    assert second.status_code == 409
+    assert second.json()["error"]["code"] == "CONFLICT"
+
+    assert cancel_calls == [1]
+    assert release_calls == [1]
 
 
 def test_cancel_returns_not_found_for_foreign_owned_task(
@@ -620,6 +683,7 @@ def test_admin_credits_topups_target_user_for_admin(monkeypatch: pytest.MonkeyPa
     assert recorded_events[0]["amount"] == 25
     assert recorded_events[0]["reason"] == "unit-test-topup"
     assert recorded_events[0]["admin_user_id"] == admin_user.user_id
+    assert str(recorded_events[0]["transfer_id"]) == str(billing.topup_calls[0][1])
 
 
 def test_admin_credits_returns_not_found_for_unknown_target_api_key(
@@ -698,6 +762,54 @@ def test_admin_credits_returns_503_when_tigerbeetle_topup_fails(
     assert billing.balance_calls == []
 
 
+def test_admin_credits_returns_503_when_outbox_write_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from solution3.api import admin_routes
+
+    target_user = AuthUser(
+        api_key="c9169bc2-2980-4155-be29-442ffc44ce64",
+        user_id=UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+        name="test-user-2",
+        role=UserRole.USER,
+        tier=SubscriptionTier.FREE,
+        scopes=frozenset(),
+    )
+
+    async def fake_fetch_active_user_by_api_key(*_: object, **__: object) -> AuthUser | None:
+        return target_user
+
+    async def fail_outbox(*_: object, **__: object) -> None:
+        raise RuntimeError("outbox store unavailable")
+
+    monkeypatch.setattr(
+        admin_routes, "fetch_active_user_by_api_key", fake_fetch_active_user_by_api_key
+    )
+    monkeypatch.setattr(admin_routes, "record_admin_credit_topup", fail_outbox)
+
+    client, _, billing = _client(
+        monkeypatch,
+        current_user=_auth_user(role=UserRole.ADMIN),
+        billing_client=FakeBilling(balance=250),
+    )
+    with client:
+        response = client.post(
+            "/v1/admin/credits",
+            headers={"Authorization": "Bearer jwt.header.signature"},
+            json={
+                "api_key": target_user.api_key,
+                "amount": 25,
+                "reason": "outbox-failure",
+            },
+        )
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "SERVICE_DEGRADED"
+    assert len(billing.topup_calls) == 1
+    assert billing.topup_calls[0][0] == target_user.user_id
+    assert billing.topup_calls[0][2] == 25
+
+
 def test_submit_returns_402_when_tigerbeetle_reserve_rejects(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -720,7 +832,47 @@ def test_submit_returns_402_when_tigerbeetle_reserve_rejects(
     assert len(billing.reserve_calls) == 1
 
 
-def test_cancel_voids_pending_transfer_before_command_update(
+def test_cancel_db_update_happens_before_billing_void(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from solution3.api import task_write_routes
+
+    command = _task_command(
+        task_id=uuid7(),
+        user_id=_auth_user().user_id,
+        status=TaskStatus.PENDING,
+        billing_state=BillingState.RESERVED,
+    )
+
+    call_order: list[str] = []
+
+    async def fake_get_task_command(*_: object, **__: object) -> TaskCommand:
+        return command
+
+    async def fake_cancel(*_: object, **__: object) -> bool:
+        call_order.append("db_cancel")
+        return True
+
+    async def fake_release(*_: object, **__: object) -> bool:
+        call_order.append("billing_void")
+        return True
+
+    monkeypatch.setattr(task_write_routes, "get_task_command", fake_get_task_command)
+    monkeypatch.setattr(task_write_routes, "cancel_task_command", fake_cancel)
+    monkeypatch.setattr(task_write_routes, "_release_pending_transfer", fake_release)
+
+    client, _, _ = _client(monkeypatch, current_user=_auth_user())
+    with client:
+        response = client.post(
+            f"/v1/task/{command.task_id}/cancel",
+            headers={"Authorization": "Bearer jwt.header.signature"},
+        )
+
+    assert response.status_code == 200
+    assert call_order == ["db_cancel", "billing_void"]
+
+
+def test_cancel_returns_200_when_billing_void_fails_after_db_cancel(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from solution3.api import task_write_routes
@@ -738,10 +890,14 @@ def test_cancel_voids_pending_transfer_before_command_update(
     async def fake_cancel(*_: object, **__: object) -> bool:
         return True
 
+    async def fake_release(*_: object, **__: object) -> bool:
+        raise RuntimeError("billing not reachable")
+
     monkeypatch.setattr(task_write_routes, "get_task_command", fake_get_task_command)
     monkeypatch.setattr(task_write_routes, "cancel_task_command", fake_cancel)
+    monkeypatch.setattr(task_write_routes, "_release_pending_transfer", fake_release)
 
-    client, _, billing = _client(monkeypatch, current_user=_auth_user())
+    client, _, _ = _client(monkeypatch, current_user=_auth_user())
     with client:
         response = client.post(
             f"/v1/task/{command.task_id}/cancel",
@@ -749,4 +905,3 @@ def test_cancel_voids_pending_transfer_before_command_update(
         )
 
     assert response.status_code == 200
-    assert billing.void_calls == [command.tb_pending_transfer_id]

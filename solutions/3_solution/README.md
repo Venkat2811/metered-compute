@@ -85,12 +85,16 @@ What is already real:
 - explicit TigerBeetle drift alignment for stale `RESERVED` tasks whose pending transfer has already been posted or voided, with command/query/outbox correction back to terminal state
 - real webhook worker that consumes terminal Redpanda events, looks up `callback_url` from the command store, retries delivery with bounded exponential backoff, and persists exhausted deliveries into `cmd.webhook_dead_letters`
 - outbox relay and dispatcher contract seams with unit-tested publish/flush behavior
-- worker-shaped entrypoints for `dispatcher`, `projector`, `reconciler`, `worker`, `watchdog`, and `webhook-worker`
+- worker-shaped entrypoints for `dispatcher`, `projector`, `reconciler`, `worker`, and `webhook-worker`
 - isolated test suite in `tests_bootstrap/` covering unit, integration, e2e, and fault slices for the implemented scope
 - deterministic `scripts/run_scenarios.py` harness that writes JSON evidence and exercises the shipped HTTP flows against a live stack
 - `scripts/load_harness.py` plus `scripts/capacity_model.py` for lightweight measured throughput and derived monthly projections
-- Prometheus metrics for API, worker, dispatcher, outbox relay, projector, reconciler, webhook worker, and watchdog processes
+- Prometheus metrics for API, worker, dispatcher, outbox relay, projector, reconciler, and webhook worker processes
 - non-placeholder Grafana dashboard plus alert rules for the shipped runtime signals
+
+Known limitation:
+
+- Sol3 keeps CQRS + broker fan-out architecture. Under an exceptional path, a worker can post a TigerBeetle capture while the database finalization fails before result persistence, which can leave a task status transition complete while `result` is absent. This is the intended Sol3 trade-off versus Sol5's journaled execution model.
 
 What is not implemented yet:
 
@@ -111,6 +115,7 @@ Repository shape:
 |   |-- dispatcher
 |   |-- postgres
 |   |-- projector
+|   |-- outbox_relay
 |   |-- reconciler
 |   |-- webhook_worker
 |   `-- worker
@@ -158,7 +163,6 @@ src/solution3
     |-- outbox_relay.py
     |-- projector.py
     |-- reconciler.py
-    |-- watchdog.py
     |-- webhook_dispatcher.py
     `-- worker.py
 ```

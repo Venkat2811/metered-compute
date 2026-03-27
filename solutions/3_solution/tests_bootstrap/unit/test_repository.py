@@ -181,6 +181,7 @@ async def test_record_admin_credit_topup_persists_outbox_event() -> None:
     pool = FakePool(connection=connection)
     user_id = UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
     admin_user_id = UUID("5ba7f2f8-24be-448a-9552-3af6e06e8898")
+    transfer_id = UUID("b4e6f9f8-1111-4a2a-bf8f-4a1c5f2a2d11")
 
     await repository.record_admin_credit_topup(
         pool,
@@ -190,6 +191,7 @@ async def test_record_admin_credit_topup_persists_outbox_event() -> None:
         admin_user_id=admin_user_id,
         api_key="c9169bc2-2980-4155-be29-442ffc44ce64",
         new_balance=275,
+        transfer_id=transfer_id,
     )
 
     assert len(connection.execute_calls) == 1
@@ -204,6 +206,7 @@ async def test_record_admin_credit_topup_persists_outbox_event() -> None:
         "admin_user_id": str(admin_user_id),
         "api_key": "c9169bc2-2980-4155-be29-442ffc44ce64",
         "new_balance": 275,
+        "transfer_id": str(transfer_id),
     }
 
 

@@ -12,7 +12,7 @@ mkdir -p "${service_logs_dir}"
 docker compose ps >"${output_dir}/compose-ps.txt" 2>&1 || true
 docker compose logs --no-color >"${output_dir}/compose.log" 2>&1 || true
 
-for svc in api worker dispatcher outbox-relay projector reconciler watchdog webhook-worker redpanda tigerbeetle rabbitmq redis postgres hydra prometheus grafana; do
+for svc in api worker dispatcher outbox-relay projector reconciler webhook-worker redpanda tigerbeetle rabbitmq redis postgres hydra prometheus grafana; do
   docker compose logs --no-color "${svc}" >"${service_logs_dir}/${svc}.log" 2>&1 || true
 done
 

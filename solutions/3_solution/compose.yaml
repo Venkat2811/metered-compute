@@ -155,27 +155,6 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  watchdog:
-    build:
-      context: .
-      dockerfile: docker/watchdog/Dockerfile
-    env_file:
-      - .env.dev.defaults
-    environment:
-      OTEL_ENABLED: ${OTEL_ENABLED:-false}
-      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://otel-collector:4318/v1/traces}
-      OTEL_SERVICE_NAMESPACE: ${OTEL_SERVICE_NAMESPACE:-metered-compute}
-      OTEL_EXPORT_TIMEOUT_SECONDS: ${OTEL_EXPORT_TIMEOUT_SECONDS:-3.0}
-      OTEL_SAMPLER_RATIO: ${OTEL_SAMPLER_RATIO:-1.0}
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
-
   webhook-worker:
     build:
       context: .
@@ -356,7 +335,6 @@ services:
       - outbox-relay
       - projector
       - reconciler
-      - watchdog
       - webhook-worker
       - hydra
       - rabbitmq

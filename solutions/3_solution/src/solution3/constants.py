@@ -96,8 +96,6 @@ TASK_EVENT_TYPES: Final[tuple[str, ...]] = (
     "task.failed",
     "task.cancelled",
     "task.expired",
-    "billing.captured",
-    "billing.released",
 )
 
 REDPANDA_TOPIC_TASK_REQUESTED: Final[str] = "tasks.requested"
@@ -106,8 +104,6 @@ REDPANDA_TOPIC_TASK_COMPLETED: Final[str] = "tasks.completed"
 REDPANDA_TOPIC_TASK_FAILED: Final[str] = "tasks.failed"
 REDPANDA_TOPIC_TASK_CANCELLED: Final[str] = "tasks.cancelled"
 REDPANDA_TOPIC_TASK_EXPIRED: Final[str] = "tasks.expired"
-REDPANDA_TOPIC_BILLING_CAPTURED: Final[str] = "billing.captured"
-REDPANDA_TOPIC_BILLING_RELEASED: Final[str] = "billing.released"
 
 RABBITMQ_EXCHANGE_PRELOADED: Final[str] = "preloaded"
 RABBITMQ_EXCHANGE_COLDSTART: Final[str] = "coldstart"

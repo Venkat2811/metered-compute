@@ -82,14 +82,6 @@ def register_admin_routes(router: APIRouter) -> None:
                 runtime.billing_client.get_balance,
                 target_user.user_id,
             )
-        except Exception:
-            return api_error_response(
-                status_code=503,
-                code="SERVICE_DEGRADED",
-                message="Billing backend unavailable",
-            )
-
-        try:
             await record_admin_credit_topup(
                 runtime.db_pool,
                 user_id=target_user.user_id,
@@ -98,14 +90,20 @@ def register_admin_routes(router: APIRouter) -> None:
                 admin_user_id=current_user.user_id,
                 api_key=payload.api_key,
                 new_balance=new_balance,
+                transfer_id=transfer_id,
             )
         except Exception as exc:
-            logger.warning(
+            logger.error(
                 "solution3_admin_credit_outbox_failed",
                 target_api_key_masked=_mask_api_key(payload.api_key),
                 target_user_id=str(target_user.user_id),
                 admin_user_id=str(current_user.user_id),
                 error=str(exc),
+            )
+            return api_error_response(
+                status_code=503,
+                code="SERVICE_DEGRADED",
+                message="Billing backend unavailable",
             )
 
         response = AdminCreditsResponse(api_key=payload.api_key, new_balance=int(new_balance))

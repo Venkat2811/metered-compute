@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import asyncio
-import importlib
 from collections.abc import Callable
 from contextlib import suppress
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -102,28 +102,33 @@ async def test_main_async_logs_heartbeat_and_stops(monkeypatch: pytest.MonkeyPat
     ]
 
 
-@pytest.mark.parametrize(
-    ("module_name", "expected_name"),
-    [
-        ("solution3.workers.watchdog", "solution3_watchdog"),
-    ],
-)
-def test_worker_entrypoints_delegate_to_run_worker(
-    monkeypatch: pytest.MonkeyPatch,
-    module_name: str,
-    expected_name: str,
-) -> None:
-    module = importlib.import_module(module_name)
-    calls: list[tuple[str, int]] = []
-    monkeypatch.setattr(
-        module, "load_settings", lambda: SimpleNamespace(watchdog_metrics_port=9700)
-    )
-    monkeypatch.setattr(
-        module,
-        "run_worker",
-        lambda name, metrics_port: calls.append((name, metrics_port)),
-    )
+def test_dispatcher_main_invokes_event_loop() -> None:
+    """
+    Main entrypoint smoke-test: dispatcher's event loop parser path remains wired.
+    """
+    from solution3.workers import dispatcher
 
-    module.main()
+    parsed = SimpleNamespace(interval=1.2, poll_timeout_ms=50, max_records=3)
+    calls: list[tuple[float, int, int]] = []
 
-    assert calls == [(expected_name, 9700)]
+    def fake_parse_args() -> SimpleNamespace:
+        return parsed
+
+    def fake_main_loop(*, interval_seconds: float, poll_timeout_ms: int, max_records: int) -> None:
+        calls.append((interval_seconds, poll_timeout_ms, max_records))
+
+    monkeypatch = pytest.MonkeyPatch()
+    try:
+        monkeypatch.setattr(dispatcher, "_parse_args", fake_parse_args)
+        monkeypatch.setattr(dispatcher, "_main_loop", fake_main_loop)
+        dispatcher.main()
+    finally:
+        monkeypatch.undo()
+
+    assert calls == [(1.2, 50, 3)]
+
+
+def test_compose_manifest_does_not_include_watchdog_service() -> None:
+    compose_path = Path(__file__).resolve().parents[2] / "compose.yaml"
+    text = compose_path.read_text(encoding="utf-8")
+    assert "  watchdog:\n" not in text

@@ -11,7 +11,6 @@ dockerfiles=(
   "docker/worker/Dockerfile"
   "docker/outbox_relay/Dockerfile"
   "docker/projector/Dockerfile"
-  "docker/watchdog/Dockerfile"
   "docker/webhook_worker/Dockerfile"
   "docker/postgres/Dockerfile"
 )

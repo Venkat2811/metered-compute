@@ -113,3 +113,4 @@ Priority: `P0` (blocker), `P1` (must-have), `P2` (nice-to-have)
 - `done/P0-005-solution3-projections-and-recovery.md`
 - `done/P0-006-solution3-observability-proof.md`
 - `done/P1-007-solution3-admin-topup-alignment.md`
+- `done/P1-008-solution3-rfc-hardening-and-integrity.md`
