@@ -35,6 +35,13 @@ class ReserveCreditsResult(StrEnum):
     ERROR = "error"
 
 
+class PendingTransferState(StrEnum):
+    PENDING = "pending"
+    POSTED = "posted"
+    VOIDED = "voided"
+    ABSENT = "absent"
+
+
 class TigerBeetleBilling:
     def __init__(
         self,
@@ -142,6 +149,34 @@ class TigerBeetleBilling:
             user_data_128=_uuid_to_u128(pending_transfer_id),
         )
         return not bool(self._client.create_transfers([transfer]))
+
+    def get_pending_transfer_state(
+        self, *, pending_transfer_id: UUID | str
+    ) -> PendingTransferState:
+        transfer_key = _uuid_to_u128(pending_transfer_id)
+        transfers = self._client.query_transfers(
+            tb.QueryFilter(
+                user_data_128=transfer_key,
+                ledger=self._ledger_id,
+                limit=16,
+            )
+        )
+        if not transfers:
+            return PendingTransferState.ABSENT
+
+        for transfer in transfers:
+            if transfer.flags & tb.TransferFlags.POST_PENDING_TRANSFER:
+                return PendingTransferState.POSTED
+
+        for transfer in transfers:
+            if transfer.flags & tb.TransferFlags.VOID_PENDING_TRANSFER:
+                return PendingTransferState.VOIDED
+
+        for transfer in transfers:
+            if transfer.id == transfer_key and transfer.flags & tb.TransferFlags.PENDING:
+                return PendingTransferState.PENDING
+
+        return PendingTransferState.ABSENT
 
     def topup_credits(self, *, user_id: UUID | str, transfer_id: UUID | str, amount: int) -> bool:
         transfer = tb.Transfer(

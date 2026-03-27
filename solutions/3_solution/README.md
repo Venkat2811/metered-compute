@@ -51,13 +51,14 @@ Current proof scope is intentionally narrower than the final RFC scope:
 - live infra integration for submit -> TigerBeetle reserve -> outbox relay -> Redpanda -> dispatcher -> RabbitMQ -> worker -> poll completed
 - live infra integration for `poll` query-view fallback after evicting the Redis task key
 - live infra integration for projection reset -> Redpanda replay rebuild -> `poll` restored from rebuilt query state
+- live infra integration for reconciler repair after command/query rollback against TigerBeetle posted and voided terminal states
 - live infra integration for webhook callback success and durable dead-letter capture after bounded delivery retries
 - bootstrap demo smoke
 - one failure-path script check for readiness timeout
 
 ## Current Status
 
-This directory has completed `P0-004` and now has the projector, rebuild, stale-reserved reconciler, and webhook-delivery slices of `P0-005` landed.
+This directory has completed `P0-005`. The projector, rebuild tooling, TigerBeetle-aware reconciler, and webhook-delivery slices are all landed, and `make prove` is green for the currently implemented scope.
 
 What is already real:
 
@@ -79,6 +80,7 @@ What is already real:
 - live poll fallback from `query.task_query_view` when the Redis task key is missing
 - rebuild tooling that can restore the projection from SQL or replay the Redpanda task log from offset 0
 - real reconciler path for stale `RESERVED` tasks: one-shot or looped scan, guarded transition to `EXPIRED`, Redis hot-path update, active-slot release, and `tasks.expired` outbox emission
+- explicit TigerBeetle drift alignment for stale `RESERVED` tasks whose pending transfer has already been posted or voided, with command/query/outbox correction back to terminal state
 - real webhook worker that consumes terminal Redpanda events, looks up `callback_url` from the command store, retries delivery with bounded exponential backoff, and persists exhausted deliveries into `cmd.webhook_dead_letters`
 - outbox relay and dispatcher contract seams with unit-tested publish/flush behavior
 - worker-shaped entrypoints for `dispatcher`, `projector`, `reconciler`, `worker`, `watchdog`, and `webhook-worker`
@@ -86,11 +88,10 @@ What is already real:
 
 What is not implemented yet:
 
-- explicit TigerBeetle posted/voided drift alignment branches in the reconciler
 - successful admin top-up path
 - scenario harness and load profile
 
-Those land in the remaining `P0-005` / `P0-006` slices. The kanban reflects the real ship order.
+Those land in the remaining `P0-006` slice. The kanban reflects the real ship order.
 
 ## Lay Of The Land
 

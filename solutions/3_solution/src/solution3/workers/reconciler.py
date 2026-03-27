@@ -6,11 +6,22 @@ import signal
 from typing import Protocol, cast
 
 import asyncpg
+import tigerbeetle as tb
 from redis.asyncio import Redis
 
-from solution3.core.settings import load_settings
-from solution3.db.repository import expire_stale_reserved_task, list_stale_reserved_tasks
+from solution3.constants import BillingState, TaskStatus
+from solution3.core.settings import AppSettings, load_settings
+from solution3.db.repository import (
+    align_stale_reserved_task_terminal_state,
+    expire_stale_reserved_task,
+    list_stale_reserved_tasks,
+)
 from solution3.models.domain import ReconciledTaskState
+from solution3.services.billing import (
+    PendingTransferState,
+    TigerBeetleBilling,
+    resolve_tigerbeetle_addresses,
+)
 from solution3.utils.logging import configure_logging, get_logger
 
 logger = get_logger("solution3.workers.reconciler")
@@ -28,6 +39,12 @@ class ReconcilerRedis(Protocol):
     async def decr(self, key: str) -> int: ...
 
     async def set(self, key: str, value: int) -> None: ...
+
+
+class ReconcilerBilling(Protocol):
+    def get_pending_transfer_state(
+        self, *, pending_transfer_id: object
+    ) -> PendingTransferState: ...
 
 
 def _task_state_key(task_id: object) -> str:
@@ -87,10 +104,38 @@ async def _cache_reconciled_state(
     await redis_client.expire(_task_state_key(state.task_id), result_ttl_seconds)
 
 
+def _terminal_alignment_target(
+    task_status: TaskStatus,
+    transfer_state: PendingTransferState,
+) -> tuple[TaskStatus, BillingState, str] | None:
+    if transfer_state == PendingTransferState.POSTED:
+        return TaskStatus.COMPLETED, BillingState.CAPTURED, "TB_CAPTURED"
+    if transfer_state == PendingTransferState.VOIDED:
+        status = TaskStatus.CANCELLED if task_status == TaskStatus.PENDING else TaskStatus.FAILED
+        return status, BillingState.RELEASED, "TB_VOIDED"
+    return None
+
+
+def _build_billing(settings: AppSettings) -> tuple[tb.ClientSync, TigerBeetleBilling]:
+    endpoint = resolve_tigerbeetle_addresses(settings.tigerbeetle_endpoint)
+    client = tb.ClientSync(
+        cluster_id=settings.tigerbeetle_cluster_id,
+        replica_addresses=endpoint,
+    )
+    return client, TigerBeetleBilling(
+        client=client,
+        ledger_id=settings.tigerbeetle_ledger_id,
+        revenue_account_id=settings.tigerbeetle_revenue_account_id,
+        escrow_account_id=settings.tigerbeetle_escrow_account_id,
+        pending_timeout_seconds=settings.tigerbeetle_pending_transfer_timeout_seconds,
+    )
+
+
 async def reconcile_stale_reserved_tasks(
     *,
     db_pool: asyncpg.Pool,
     redis_client: ReconcilerRedis | None,
+    billing: ReconcilerBilling,
     stale_after_seconds: int,
     result_ttl_seconds: int,
 ) -> int:
@@ -100,20 +145,39 @@ async def reconcile_stale_reserved_tasks(
     )
     resolved = 0
     for task in stale_tasks:
-        expired = await expire_stale_reserved_task(
-            db_pool,
-            task_id=task.task_id,
-            tb_pending_transfer_id=task.tb_pending_transfer_id,
-            stale_after_seconds=stale_after_seconds,
+        transfer_state = await asyncio.to_thread(
+            billing.get_pending_transfer_state,
+            pending_transfer_id=task.tb_pending_transfer_id,
         )
-        if expired is None:
+        if transfer_state == PendingTransferState.PENDING:
             continue
-        await _cache_reconciled_state(
-            redis_client=redis_client,
-            state=expired,
-            result_ttl_seconds=result_ttl_seconds,
-        )
-        resolved += 1
+        if transfer_state == PendingTransferState.ABSENT:
+            reconciled = await expire_stale_reserved_task(
+                db_pool,
+                task_id=task.task_id,
+                tb_pending_transfer_id=task.tb_pending_transfer_id,
+                stale_after_seconds=stale_after_seconds,
+            )
+        else:
+            target = _terminal_alignment_target(task.status, transfer_state)
+            if target is None:
+                continue
+            status, billing_state, resolution = target
+            reconciled = await align_stale_reserved_task_terminal_state(
+                db_pool,
+                task=task,
+                status=status,
+                billing_state=billing_state,
+                resolution=resolution,
+                stale_after_seconds=stale_after_seconds,
+            )
+        if reconciled is not None:
+            await _cache_reconciled_state(
+                redis_client=redis_client,
+                state=reconciled,
+                result_ttl_seconds=result_ttl_seconds,
+            )
+            resolved += 1
     return resolved
 
 
@@ -127,6 +191,7 @@ async def _main_async(
     settings = load_settings()
     db_pool = await asyncpg.create_pool(dsn=str(settings.postgres_dsn))
     redis_client = Redis.from_url(str(settings.redis_url), decode_responses=True)
+    tb_client, billing = _build_billing(settings)
     await redis_client.ping()
     stop_event = asyncio.Event()
     _install_stop_handlers(stop_event)
@@ -136,6 +201,7 @@ async def _main_async(
             resolved = await reconcile_stale_reserved_tasks(
                 db_pool=db_pool,
                 redis_client=cast(ReconcilerRedis, redis_client),
+                billing=cast(ReconcilerBilling, billing),
                 stale_after_seconds=stale_after_seconds,
                 result_ttl_seconds=result_ttl_seconds,
             )
@@ -148,6 +214,7 @@ async def _main_async(
             except TimeoutError:
                 continue
     finally:
+        tb_client.close()
         await redis_client.close()
         await db_pool.close()
 

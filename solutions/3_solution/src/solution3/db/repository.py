@@ -105,6 +105,18 @@ def _map_stale_reserved_task(row: asyncpg.Record) -> StaleReservedTask:
     )
 
 
+def _terminal_event_for_status(status: TaskStatus) -> tuple[str, str]:
+    if status == TaskStatus.COMPLETED:
+        return "task.completed", "tasks.completed"
+    if status == TaskStatus.FAILED:
+        return "task.failed", "tasks.failed"
+    if status == TaskStatus.CANCELLED:
+        return "task.cancelled", "tasks.cancelled"
+    if status == TaskStatus.EXPIRED:
+        return "task.expired", "tasks.expired"
+    raise ValueError(f"unsupported terminal task status: {status.value}")
+
+
 async def fetch_active_user_by_api_key(pool: asyncpg.Pool, *, api_key: str) -> AuthUser | None:
     key_hash = hashlib.sha256(api_key.encode("utf-8")).hexdigest()
     row = await pool.fetchrow(
@@ -734,6 +746,95 @@ async def expire_stale_reserved_task(
                     "user_id": str(updated["user_id"]),
                     "status": TaskStatus.EXPIRED.value,
                     "billing_state": BillingState.EXPIRED.value,
+                }
+            ),
+        )
+        return ReconciledTaskState(
+            task_id=updated["task_id"],
+            user_id=updated["user_id"],
+            status=TaskStatus(updated["status"]),
+            billing_state=BillingState(updated["billing_state"]),
+            model_class=ModelClass(updated["model_class"]),
+        )
+
+
+async def align_stale_reserved_task_terminal_state(
+    pool: asyncpg.Pool,
+    *,
+    task: StaleReservedTask,
+    status: TaskStatus,
+    billing_state: BillingState,
+    resolution: str,
+    stale_after_seconds: int,
+) -> ReconciledTaskState | None:
+    event_type, topic = _terminal_event_for_status(status)
+
+    async with pool.acquire() as connection, connection.transaction():
+        updated = await connection.fetchrow(
+            """
+            UPDATE cmd.task_commands
+            SET status=$2, billing_state=$3, updated_at=now()
+            WHERE task_id=$1
+              AND billing_state=$4
+              AND status IN ($5, $6)
+              AND created_at < now() - make_interval(secs => $7)
+            RETURNING task_id, user_id, status, billing_state, model_class
+            """,
+            task.task_id,
+            status.value,
+            billing_state.value,
+            BillingState.RESERVED.value,
+            TaskStatus.PENDING.value,
+            TaskStatus.RUNNING.value,
+            stale_after_seconds,
+        )
+        if updated is None:
+            return None
+
+        await connection.execute(
+            """
+            UPDATE query.task_query_view
+            SET status=$2,
+                billing_state=$3,
+                result=NULL,
+                error=NULL,
+                updated_at=now()
+            WHERE task_id=$1
+            """,
+            task.task_id,
+            status.value,
+            billing_state.value,
+        )
+        await connection.execute(
+            """
+            INSERT INTO cmd.billing_reconcile_jobs(
+              task_id,
+              tb_pending_transfer_id,
+              state,
+              resolution
+            )
+            VALUES($1, $2, 'RESOLVED', $3)
+            """,
+            task.task_id,
+            task.tb_pending_transfer_id,
+            resolution,
+        )
+        await connection.execute(
+            """
+            INSERT INTO cmd.outbox_events(aggregate_id, event_type, topic, payload)
+            VALUES($1, $2, $3, $4::jsonb)
+            """,
+            task.task_id,
+            event_type,
+            topic,
+            json.dumps(
+                {
+                    "task_id": str(updated["task_id"]),
+                    "user_id": str(updated["user_id"]),
+                    "status": status.value,
+                    "billing_state": billing_state.value,
+                    "result": None,
+                    "error": None,
                 }
             ),
         )

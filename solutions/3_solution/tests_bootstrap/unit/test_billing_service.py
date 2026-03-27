@@ -12,6 +12,7 @@ from solution3.services.billing import (
     LEDGER_ACCOUNT_CODE_USER,
     TRANSFER_CODE_TASK,
     TRANSFER_CODE_TOPUP,
+    PendingTransferState,
     ReserveCreditsResult,
     TigerBeetleBilling,
     _uuid_to_u128,
@@ -46,6 +47,14 @@ class TestTigerBeetleBilling:
         assert accounts[1].id == 1_000_002
         assert accounts[1].code == LEDGER_ACCOUNT_CODE_ESCROW
 
+    def test_ensure_platform_accounts_raises_for_unexpected_error(self) -> None:
+        error = MagicMock()
+        error.result = tb.CreateAccountResult.LINKED_EVENT_FAILED
+        self.client.create_accounts.return_value = [error]
+
+        with pytest.raises(RuntimeError, match="platform account bootstrap failed"):
+            self.billing.ensure_platform_accounts()
+
     def test_ensure_user_account_enables_no_overdraft_flag(self) -> None:
         user_id = UUID("47b47338-5355-4edc-860b-846d71a2a75a")
         self.client.create_accounts.return_value = []
@@ -71,6 +80,17 @@ class TestTigerBeetleBilling:
         assert transfer.credit_account_id == _uuid_to_u128(user_id)
         assert transfer.amount == 500
         assert transfer.code == TRANSFER_CODE_TOPUP
+
+    def test_ensure_user_account_raises_for_unexpected_create_error(self) -> None:
+        error = MagicMock()
+        error.result = tb.CreateAccountResult.LINKED_EVENT_FAILED
+        self.client.create_accounts.return_value = [error]
+
+        with pytest.raises(RuntimeError, match="user account bootstrap failed"):
+            self.billing.ensure_user_account(
+                UUID("47b47338-5355-4edc-860b-846d71a2a75a"),
+                initial_credits=0,
+            )
 
     def test_reserve_credits_builds_pending_transfer(self) -> None:
         self.client.create_transfers.return_value = []
@@ -143,6 +163,81 @@ class TestTigerBeetleBilling:
         assert transfer.code == TRANSFER_CODE_TASK
         assert transfer.user_data_128 == _uuid_to_u128(pending_transfer_id)
 
+    def test_get_pending_transfer_state_reports_pending_for_open_transfer(self) -> None:
+        pending_transfer_id = UUID("019c6db7-0857-7858-af93-f724ae4fe2c2")
+        self.client.query_transfers.return_value = [
+            tb.Transfer(
+                id=_uuid_to_u128(pending_transfer_id),
+                user_data_128=_uuid_to_u128(pending_transfer_id),
+                ledger=1,
+                code=TRANSFER_CODE_TASK,
+                flags=tb.TransferFlags.PENDING,
+            )
+        ]
+
+        state = self.billing.get_pending_transfer_state(pending_transfer_id=pending_transfer_id)
+
+        assert state == PendingTransferState.PENDING
+        query_filter = self.client.query_transfers.call_args.args[0]
+        assert query_filter.user_data_128 == _uuid_to_u128(pending_transfer_id)
+        assert query_filter.ledger == 1
+
+    def test_get_pending_transfer_state_reports_posted_when_close_transfer_exists(self) -> None:
+        pending_transfer_id = UUID("019c6db7-0857-7858-af93-f724ae4fe2c2")
+        self.client.query_transfers.return_value = [
+            tb.Transfer(
+                id=_uuid_to_u128(pending_transfer_id),
+                user_data_128=_uuid_to_u128(pending_transfer_id),
+                ledger=1,
+                code=TRANSFER_CODE_TASK,
+                flags=tb.TransferFlags.PENDING,
+            ),
+            tb.Transfer(
+                id=_uuid_to_u128("019c6db7-1439-7ace-bd2b-e1a3bb03328c"),
+                pending_id=_uuid_to_u128(pending_transfer_id),
+                user_data_128=_uuid_to_u128(pending_transfer_id),
+                ledger=1,
+                code=TRANSFER_CODE_TASK,
+                flags=tb.TransferFlags.POST_PENDING_TRANSFER,
+            ),
+        ]
+
+        state = self.billing.get_pending_transfer_state(pending_transfer_id=pending_transfer_id)
+
+        assert state == PendingTransferState.POSTED
+
+    def test_get_pending_transfer_state_reports_voided_when_release_transfer_exists(self) -> None:
+        pending_transfer_id = UUID("019c6db7-0857-7858-af93-f724ae4fe2c2")
+        self.client.query_transfers.return_value = [
+            tb.Transfer(
+                id=_uuid_to_u128(pending_transfer_id),
+                user_data_128=_uuid_to_u128(pending_transfer_id),
+                ledger=1,
+                code=TRANSFER_CODE_TASK,
+                flags=tb.TransferFlags.PENDING,
+            ),
+            tb.Transfer(
+                id=_uuid_to_u128("019c6db7-1439-7ace-bd2b-e1a3bb03328c"),
+                pending_id=_uuid_to_u128(pending_transfer_id),
+                user_data_128=_uuid_to_u128(pending_transfer_id),
+                ledger=1,
+                code=TRANSFER_CODE_TASK,
+                flags=tb.TransferFlags.VOID_PENDING_TRANSFER,
+            ),
+        ]
+
+        state = self.billing.get_pending_transfer_state(pending_transfer_id=pending_transfer_id)
+
+        assert state == PendingTransferState.VOIDED
+
+    def test_get_pending_transfer_state_reports_absent_when_transfer_history_is_empty(self) -> None:
+        pending_transfer_id = UUID("019c6db7-0857-7858-af93-f724ae4fe2c2")
+        self.client.query_transfers.return_value = []
+
+        state = self.billing.get_pending_transfer_state(pending_transfer_id=pending_transfer_id)
+
+        assert state == PendingTransferState.ABSENT
+
     def test_topup_credits_builds_posted_transfer(self) -> None:
         self.client.create_transfers.return_value = []
         user_id = UUID("47b47338-5355-4edc-860b-846d71a2a75a")
@@ -174,12 +269,21 @@ class TestTigerBeetleBilling:
 
         assert self.billing.get_balance(user_id) == 450
 
+    def test_get_balance_returns_zero_when_account_is_missing(self) -> None:
+        self.client.lookup_accounts.return_value = []
+
+        assert self.billing.get_balance(UUID("47b47338-5355-4edc-860b-846d71a2a75a")) == 0
+
 
 def test_resolve_tigerbeetle_addresses_leaves_numeric_hosts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr("socket.gethostbyname", lambda host: f"unexpected-{host}")
     assert resolve_tigerbeetle_addresses("127.0.0.1:3000") == "127.0.0.1:3000"
+
+
+def test_resolve_tigerbeetle_addresses_returns_input_without_port() -> None:
+    assert resolve_tigerbeetle_addresses("tigerbeetle") == "tigerbeetle"
 
 
 def test_resolve_tigerbeetle_addresses_resolves_hostnames(

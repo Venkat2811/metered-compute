@@ -4,13 +4,13 @@ Objective:
 
 Add query-side materialization and recovery mechanisms so Sol 3 is operational under stale states and infra churn.
 
-Status: in progress as of 2026-03-27. The projector, rebuild, first reconciler slice, and webhook worker are green: Redpanda task events now project into `query.task_query_view`, inbox dedup is in place, projection checkpoints advance, live poll fallback works after deleting the Redis task key, the projection can now be rebuilt either from SQL or by replaying Redpanda from offset `0`, stale `RESERVED` tasks now reconcile to `EXPIRED` with Redis + outbox updates, and terminal webhook callbacks now deliver with bounded retries plus durable dead-letter capture. Remaining gap: explicit TigerBeetle posted/voided drift alignment.
+Status: complete as of 2026-03-27. Redpanda task events project into `query.task_query_view`, inbox dedup is in place, projection checkpoints advance, live poll fallback works after deleting the Redis task key, the projection can be rebuilt either from SQL or by replaying Redpanda from offset `0`, stale `RESERVED` tasks reconcile either to `EXPIRED` or back to the correct TigerBeetle-backed terminal state, and terminal webhook callbacks deliver with bounded retries plus durable dead-letter capture.
 
 Acceptance criteria:
 
 - [x] Projector consumes command events into query view and checkpoints offsets.
 - [x] Rebuilder mode can replay from topic start and restore query view.
-- [ ] Reconciler resolves stale reserved states and pending terminal drifts.
+- [x] Reconciler resolves stale reserved states and pending terminal drifts.
 - [x] Webhook worker dispatches callbacks with retry/dead-letter policy.
 
 TDD order:
@@ -33,9 +33,9 @@ Checklist:
   - checkpoint updates.
 - [x] Add `src/solution3/workers/rebuilder.py` command:
   - support `--from-beginning` mode.
-- [ ] Add `src/solution3/workers/reconciler.py`:
+- [x] Add `src/solution3/workers/reconciler.py`:
   - [x] scan stale `RESERVED` tasks and expire them after the TB timeout window
-  - [ ] align explicit TB posted/voided drift branches
+  - [x] align explicit TB posted/voided drift branches
   - [x] emit `tasks.expired` correction events and Redis hot-path updates.
 - [x] Add `src/solution3/workers/webhook_dispatcher.py`:
   - consume terminal events
@@ -45,9 +45,10 @@ Checklist:
 - [x] Add integration test for Redpanda replay rebuild after projection reset.
 - [x] Add integration test for stale reserved expiry with the worker intentionally stopped.
 - [x] Add integration tests for webhook delivery success and dead-letter capture after bounded retries.
-- [ ] Add integration test for reconciler drift fix.
+- [x] Add integration test for reconciler drift fix.
 
 Completion criteria:
 
 - [x] Poll can be served from query view under steady state.
 - [x] Stale reserved tasks are corrected without manual intervention.
+- [x] TigerBeetle terminal state drift is repaired back into command, query, and cache state without manual intervention.

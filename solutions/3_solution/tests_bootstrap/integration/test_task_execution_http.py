@@ -123,6 +123,77 @@ async def _age_task_command(task_id: str, *, age_seconds: int) -> None:
         await connection.close()
 
 
+async def _force_stale_reserved_state(
+    task_id: str,
+    *,
+    status: str,
+    age_seconds: int,
+) -> None:
+    connection = await asyncpg.connect(dsn=_postgres_dsn())
+    try:
+        await connection.execute(
+            """
+            UPDATE cmd.task_commands
+            SET status = $2,
+                billing_state = 'RESERVED',
+                updated_at = now() - make_interval(secs => $3),
+                created_at = now() - make_interval(secs => $3)
+            WHERE task_id = $1::uuid
+            """,
+            task_id,
+            status,
+            age_seconds,
+        )
+        await connection.execute(
+            """
+            UPDATE query.task_query_view
+            SET status = $2,
+                billing_state = 'RESERVED',
+                result = NULL,
+                error = NULL,
+                updated_at = now() - make_interval(secs => $3)
+            WHERE task_id = $1::uuid
+            """,
+            task_id,
+            status,
+            age_seconds,
+        )
+    finally:
+        await connection.close()
+
+
+async def _force_missing_tb_pending_transfer(task_id: str) -> None:
+    connection = await asyncpg.connect(dsn=_postgres_dsn())
+    try:
+        await connection.execute(
+            """
+            UPDATE cmd.task_commands
+            SET tb_pending_transfer_id = $2::uuid
+            WHERE task_id = $1::uuid
+            """,
+            task_id,
+            str(uuid.uuid4()),
+        )
+    finally:
+        await connection.close()
+
+
+def _run_reconciler_once(*, stale_after_seconds: int) -> None:
+    _compose(
+        "run",
+        "--rm",
+        "--no-deps",
+        "--build",
+        "reconciler",
+        "python",
+        "-m",
+        "solution3.workers.reconciler",
+        "--once",
+        "--stale-after-seconds",
+        str(stale_after_seconds),
+    )
+
+
 @pytest.mark.integration
 def test_submit_completes_over_live_worker_path() -> None:
     access_token = _oauth_access_token(api_key=ALICE_API_KEY)
@@ -313,19 +384,8 @@ def test_reconciler_expires_stale_reserved_task_when_worker_is_stopped() -> None
         assert pending_poll.json()["status"] == "PENDING"
 
         asyncio.run(_age_task_command(task_id, age_seconds=3600))
-        _compose(
-            "run",
-            "--rm",
-            "--no-deps",
-            "--build",
-            "api",
-            "python",
-            "-m",
-            "solution3.workers.reconciler",
-            "--once",
-            "--stale-after-seconds",
-            "60",
-        )
+        asyncio.run(_force_missing_tb_pending_transfer(task_id))
+        _run_reconciler_once(stale_after_seconds=60)
 
         expired_poll = httpx.get(
             f"{BASE_URL}/v1/poll",
@@ -337,5 +397,98 @@ def test_reconciler_expires_stale_reserved_task_when_worker_is_stopped() -> None
         payload = expired_poll.json()
         assert payload["status"] == "EXPIRED"
         assert payload["billing_state"] == "EXPIRED"
+    finally:
+        _compose("up", "-d", "worker")
+
+
+@pytest.mark.integration
+def test_reconciler_repairs_tb_captured_drift_after_command_state_rollback() -> None:
+    access_token = _oauth_access_token(api_key=ALICE_API_KEY)
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Idempotency-Key": f"itest-reconcile-captured-{uuid.uuid4()}",
+    }
+
+    submit = httpx.post(
+        f"{BASE_URL}/v1/task",
+        headers=headers,
+        json={"x": 10, "y": 11},
+        timeout=10.0,
+    )
+    assert submit.status_code == 201, submit.text
+    task_id = submit.json()["task_id"]
+
+    deadline = time.time() + 30.0
+    while time.time() < deadline:
+        poll = httpx.get(
+            f"{BASE_URL}/v1/poll",
+            params={"task_id": task_id},
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=10.0,
+        )
+        assert poll.status_code == 200, poll.text
+        if poll.json()["status"] == "COMPLETED":
+            break
+        time.sleep(0.5)
+    else:
+        raise AssertionError("task did not complete before captured drift repair test")
+
+    asyncio.run(_force_stale_reserved_state(task_id, status="RUNNING", age_seconds=3600))
+    _delete_task_cache_key(task_id)
+    _run_reconciler_once(stale_after_seconds=60)
+
+    repaired_poll = httpx.get(
+        f"{BASE_URL}/v1/poll",
+        params={"task_id": task_id},
+        headers={"Authorization": f"Bearer {access_token}"},
+        timeout=10.0,
+    )
+    assert repaired_poll.status_code == 200, repaired_poll.text
+    payload = repaired_poll.json()
+    assert payload["status"] == "COMPLETED"
+    assert payload["billing_state"] == "CAPTURED"
+
+
+@pytest.mark.integration
+def test_reconciler_repairs_tb_voided_drift_after_cancel_state_rollback() -> None:
+    _compose("stop", "worker")
+    try:
+        access_token = _oauth_access_token(api_key=ALICE_API_KEY)
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Idempotency-Key": f"itest-reconcile-voided-{uuid.uuid4()}",
+        }
+
+        submit = httpx.post(
+            f"{BASE_URL}/v1/task",
+            headers=headers,
+            json={"x": 12, "y": 13},
+            timeout=10.0,
+        )
+        assert submit.status_code == 201, submit.text
+        task_id = submit.json()["task_id"]
+
+        cancel = httpx.post(
+            f"{BASE_URL}/v1/task/{task_id}/cancel",
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=10.0,
+        )
+        assert cancel.status_code == 200, cancel.text
+        assert cancel.json()["status"] == "CANCELLED"
+
+        asyncio.run(_force_stale_reserved_state(task_id, status="PENDING", age_seconds=3600))
+        _delete_task_cache_key(task_id)
+        _run_reconciler_once(stale_after_seconds=60)
+
+        repaired_poll = httpx.get(
+            f"{BASE_URL}/v1/poll",
+            params={"task_id": task_id},
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=10.0,
+        )
+        assert repaired_poll.status_code == 200, repaired_poll.text
+        payload = repaired_poll.json()
+        assert payload["status"] == "CANCELLED"
+        assert payload["billing_state"] == "RELEASED"
     finally:
         _compose("up", "-d", "worker")

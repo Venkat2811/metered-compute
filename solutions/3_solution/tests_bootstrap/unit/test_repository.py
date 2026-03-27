@@ -475,6 +475,107 @@ async def test_expire_stale_reserved_task_updates_state_and_emits_outbox() -> No
 
 
 @pytest.mark.asyncio
+async def test_align_stale_reserved_task_terminal_state_updates_completed_capture() -> None:
+    connection = FakeConnection()
+    task_id = UUID("019c6db7-0857-7858-af93-f724ae4fe2c2")
+    pending_transfer_id = UUID("019c6db7-1439-7ace-bd2b-e1a3bb03328c")
+    task = repository._map_stale_reserved_task(
+        _task_row(
+            task_id=task_id,
+            status="RUNNING",
+            billing_state="RESERVED",
+            tb_pending_transfer_id=pending_transfer_id,
+        )
+    )
+    connection.fetchrow_results = [
+        {
+            "task_id": task_id,
+            "user_id": UUID("47b47338-5355-4edc-860b-846d71a2a75a"),
+            "status": "COMPLETED",
+            "billing_state": "CAPTURED",
+            "model_class": "small",
+        }
+    ]
+    pool = FakePool(connection=connection)
+
+    reconciled = await repository.align_stale_reserved_task_terminal_state(
+        pool,
+        task=task,
+        status=TaskStatus.COMPLETED,
+        billing_state=BillingState.CAPTURED,
+        resolution="TB_CAPTURED",
+        stale_after_seconds=720,
+    )
+
+    assert reconciled is not None
+    assert reconciled.status == TaskStatus.COMPLETED
+    assert reconciled.billing_state == BillingState.CAPTURED
+    assert "UPDATE query.task_query_view" in connection.execute_calls[0][0]
+    assert connection.execute_calls[1][1] == (task_id, pending_transfer_id, "TB_CAPTURED")
+    outbox_args = connection.execute_calls[2][1]
+    assert outbox_args[:3] == (task_id, "task.completed", "tasks.completed")
+    payload = json.loads(cast(str, outbox_args[3]))
+    assert payload == {
+        "task_id": str(task_id),
+        "user_id": "47b47338-5355-4edc-860b-846d71a2a75a",
+        "status": "COMPLETED",
+        "billing_state": "CAPTURED",
+        "result": None,
+        "error": None,
+    }
+
+
+@pytest.mark.asyncio
+async def test_align_stale_reserved_task_terminal_state_updates_cancelled_release() -> None:
+    connection = FakeConnection()
+    task_id = UUID("019c6db7-0857-7858-af93-f724ae4fe2c2")
+    pending_transfer_id = UUID("019c6db7-1439-7ace-bd2b-e1a3bb03328c")
+    task = repository._map_stale_reserved_task(
+        _task_row(
+            task_id=task_id,
+            status="PENDING",
+            billing_state="RESERVED",
+            tb_pending_transfer_id=pending_transfer_id,
+        )
+    )
+    connection.fetchrow_results = [
+        {
+            "task_id": task_id,
+            "user_id": UUID("47b47338-5355-4edc-860b-846d71a2a75a"),
+            "status": "CANCELLED",
+            "billing_state": "RELEASED",
+            "model_class": "small",
+        }
+    ]
+    pool = FakePool(connection=connection)
+
+    reconciled = await repository.align_stale_reserved_task_terminal_state(
+        pool,
+        task=task,
+        status=TaskStatus.CANCELLED,
+        billing_state=BillingState.RELEASED,
+        resolution="TB_VOIDED",
+        stale_after_seconds=720,
+    )
+
+    assert reconciled is not None
+    assert reconciled.status == TaskStatus.CANCELLED
+    assert reconciled.billing_state == BillingState.RELEASED
+    assert connection.execute_calls[1][1] == (task_id, pending_transfer_id, "TB_VOIDED")
+    outbox_args = connection.execute_calls[2][1]
+    assert outbox_args[:3] == (task_id, "task.cancelled", "tasks.cancelled")
+    payload = json.loads(cast(str, outbox_args[3]))
+    assert payload == {
+        "task_id": str(task_id),
+        "user_id": "47b47338-5355-4edc-860b-846d71a2a75a",
+        "status": "CANCELLED",
+        "billing_state": "RELEASED",
+        "result": None,
+        "error": None,
+    }
+
+
+@pytest.mark.asyncio
 async def test_get_task_callback_url_returns_optional_string() -> None:
     pool = FakePool()
     pool.fetchrow_results = [{"callback_url": "https://example.test/webhook"}, None]
