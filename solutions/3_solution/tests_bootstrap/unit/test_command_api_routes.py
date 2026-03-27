@@ -907,6 +907,28 @@ def test_admin_credits_returns_503_when_outbox_write_fails(
     assert billing.topup_calls[0][2] == 25
 
 
+def test_submit_rejects_unsafe_callback_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    client, _, billing = _client(
+        monkeypatch,
+        current_user=_auth_user(),
+        billing_client=FakeBilling(),
+    )
+
+    with client:
+        response = client.post(
+            "/v1/task",
+            headers={
+                "Authorization": "Bearer jwt.header.signature",
+                "Idempotency-Key": "idem-safe",
+            },
+            json={"x": 1, "y": 2, "callback_url": "http://127.0.0.1:8080/internal"},
+        )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "BAD_REQUEST"
+    assert billing.reserve_calls == []
+
+
 def test_submit_returns_402_when_tigerbeetle_reserve_rejects(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

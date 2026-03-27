@@ -62,11 +62,44 @@ class TestCacheTask:
         r.expire.assert_awaited_once_with("task:t-1", cache.TASK_TTL)
 
     @pytest.mark.asyncio
+    async def test_cache_task_serializes_structured_result_as_json(self) -> None:
+        r = _make_redis_mock()
+        task: dict[str, Any] = {
+            "task_id": "t-1",
+            "status": "COMPLETED",
+            "result": {"sum": 7, "product": 12},
+        }
+
+        await cache.cache_task(r, "t-1", task)
+
+        mapping = r.hset.call_args.kwargs["mapping"]
+        assert mapping["result"] == '{"sum":7,"product":12}'
+
+    @pytest.mark.asyncio
     async def test_get_cached_task_hit(self) -> None:
         r = _make_redis_mock()
         r.hgetall = AsyncMock(return_value={b"task_id": b"t-1", b"status": b"COMPLETED"})
         result = await cache.get_cached_task(r, "t-1")
         assert result == {"task_id": "t-1", "status": "COMPLETED"}
+
+    @pytest.mark.asyncio
+    async def test_get_cached_task_decodes_structured_result(self) -> None:
+        r = _make_redis_mock()
+        r.hgetall = AsyncMock(
+            return_value={
+                b"task_id": b"t-1",
+                b"status": b"COMPLETED",
+                b"result": b'{"sum":7,"product":12}',
+            }
+        )
+
+        result = await cache.get_cached_task(r, "t-1")
+
+        assert result == {
+            "task_id": "t-1",
+            "status": "COMPLETED",
+            "result": {"sum": 7, "product": 12},
+        }
 
     @pytest.mark.asyncio
     async def test_get_cached_task_miss(self) -> None:

@@ -337,7 +337,37 @@ async def execute_task(ctx: restate.Context, request: dict[str, Any]) -> dict[st
             pool,
             task_id,
         )
-        if current_status in {"COMPLETED", "FAILED", "CANCELLED", "CANCEL_REQUESTED"}:
+        if current_status == "CANCEL_REQUESTED":
+            completed_after_late_cancel = await _run_replay_compatible(
+                "mark_completed_after_late_cancel",
+                repository.update_task_status_if_match,
+                pool,
+                task_id,
+                "COMPLETED",
+                result=result,
+                expected_status="CANCEL_REQUESTED",
+            )
+            if completed_after_late_cancel:
+                await _run_replay_compatible(
+                    "cache_completed_task_after_late_cancel",
+                    cache.cache_task,
+                    redis_conn,
+                    task_id,
+                    {
+                        "task_id": task_id,
+                        "status": "COMPLETED",
+                        "result": result,
+                    },
+                )
+                log.info("workflow_completed_after_late_cancel", task_id=task_id)
+                return {"status": "COMPLETED", "result": result}
+            current_status = await _run_replay_compatible(
+                "read_status_after_late_cancel_completion",
+                repository.get_task_status,
+                pool,
+                task_id,
+            )
+        if current_status in {"COMPLETED", "FAILED", "CANCELLED"}:
             return {"status": current_status}
         return {"status": "REJECTED"}
 
@@ -349,7 +379,7 @@ async def execute_task(ctx: restate.Context, request: dict[str, Any]) -> dict[st
         {
             "task_id": task_id,
             "status": "COMPLETED",
-            "result": str(result),
+            "result": result,
         },
     )
 

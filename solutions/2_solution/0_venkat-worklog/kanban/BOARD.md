@@ -97,6 +97,7 @@ No open P2 backlog cards.
 22. `done/P2-021-batch-submit-endpoint.md`
 23. `done/P2-022-sync-execution-mode.md`
 24. `done/P2-024-review-reconciliation-doc-and-runbook-parity.md`
+25. `done/P2-025-shared-doc-status-and-scope-alignment.md`
 
 ## Ship Order (Recommended)
 

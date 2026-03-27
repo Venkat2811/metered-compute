@@ -236,6 +236,11 @@ async def test_process_message_posts_terminal_payload_when_callback_exists(
         "get_task_callback_url",
         fake_get_task_callback_url,
     )
+    monkeypatch.setattr(
+        webhook_dispatcher,
+        "ensure_callback_url_delivery_safe",
+        lambda *_args, **_kwargs: asyncio.sleep(0),
+    )
 
     handled = await webhook_dispatcher.process_message(
         db_pool=cast(Any, object()),
@@ -296,6 +301,11 @@ async def test_process_message_dead_letters_after_max_retryable_failures(
         "insert_webhook_dead_letter",
         fake_insert_webhook_dead_letter,
     )
+    monkeypatch.setattr(
+        webhook_dispatcher,
+        "ensure_callback_url_delivery_safe",
+        lambda *_args, **_kwargs: asyncio.sleep(0),
+    )
 
     handled = await webhook_dispatcher.process_message(
         db_pool=cast(Any, object()),
@@ -322,6 +332,55 @@ async def test_process_message_dead_letters_after_max_retryable_failures(
     assert inserted[0]["attempts"] == 3
     assert inserted[0]["topic"] == "tasks.failed"
     assert inserted[0]["callback_url"] == "https://example.test/webhook"
+
+
+@pytest.mark.asyncio
+async def test_process_message_dead_letters_unsafe_callback_without_http_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    http_client = FakeHttpClient([200])
+    inserted: list[dict[str, object]] = []
+
+    async def fake_get_task_callback_url(*_: object, **__: object) -> str | None:
+        return "http://127.0.0.1:8080/internal"
+
+    async def fake_insert_webhook_dead_letter(*_: object, **kwargs: object) -> None:
+        inserted.append(dict(kwargs))
+
+    monkeypatch.setattr(
+        webhook_dispatcher,
+        "get_task_callback_url",
+        fake_get_task_callback_url,
+    )
+    monkeypatch.setattr(
+        webhook_dispatcher,
+        "insert_webhook_dead_letter",
+        fake_insert_webhook_dead_letter,
+    )
+
+    handled = await webhook_dispatcher.process_message(
+        db_pool=cast(Any, object()),
+        http_client=http_client,
+        message=FakeMessage(
+            topic="tasks.failed",
+            payload={
+                "task_id": "019c6db7-0857-7858-af93-f724ae4fe2c2",
+                "status": "FAILED",
+                "billing_state": "RELEASED",
+                "error": "boom",
+            },
+        ),
+        max_attempts=3,
+        initial_backoff_seconds=0.01,
+        max_backoff_seconds=0.05,
+    )
+
+    assert handled is True
+    assert http_client.calls == []
+    assert len(inserted) == 1
+    assert inserted[0]["callback_url"] == "http://127.0.0.1:8080/internal"
+    assert inserted[0]["attempts"] == 0
+    assert inserted[0]["last_error"] == "unsafe_callback_url"
 
 
 @pytest.mark.asyncio

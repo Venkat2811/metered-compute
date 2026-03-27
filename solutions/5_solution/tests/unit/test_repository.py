@@ -27,6 +27,27 @@ class TestGetUserByApiKey:
         assert result is None
 
 
+class TestGetUserById:
+    @pytest.mark.asyncio
+    async def test_returns_user_dict(self) -> None:
+        row = {"user_id": "abc-123", "name": "alice", "credits": 100, "role": "admin"}
+        pool = MagicMock()
+        pool.fetchrow = AsyncMock(return_value=row)
+
+        result = await repository.get_user_by_id(pool, "abc-123")
+
+        assert result == row
+
+    @pytest.mark.asyncio
+    async def test_returns_none_for_missing_user(self) -> None:
+        pool = MagicMock()
+        pool.fetchrow = AsyncMock(return_value=None)
+
+        result = await repository.get_user_by_id(pool, "missing-user")
+
+        assert result is None
+
+
 class TestCreateTask:
     @pytest.mark.asyncio
     async def test_creates_and_returns_task(self) -> None:

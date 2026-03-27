@@ -46,7 +46,9 @@ class TestSubmitFlow:
         for _ in range(20):
             r = client.get("/v1/poll", params={"task_id": task_id})
             assert r.status_code == 200
-            if r.json().get("status") == "COMPLETED":
+            payload = r.json()
+            if payload.get("status") == "COMPLETED":
+                assert payload["result"] == {"sum": 7, "product": 12}
                 break
             time.sleep(0.5)
         else:
@@ -66,14 +68,15 @@ class TestSubmitFlow:
             assert status in {"CANCELLED", "CANCEL_REQUESTED"}
             assert int(r.json()["credits_refunded"]) in (0, 10)
             if status == "CANCEL_REQUESTED":
-                # eventual terminal should still become canceled
+                # If cancel loses the race after capture, final state is COMPLETED;
+                # otherwise the deferred cancel still becomes terminal CANCELLED.
                 for _ in range(20):
                     poll = client.get("/v1/poll", params={"task_id": task_id})
                     assert poll.status_code == 200
                     final_status = poll.json().get("status")
-                    if final_status == "CANCELLED":
+                    if final_status in {"CANCELLED", "COMPLETED"}:
                         break
-                    if final_status in {"FAILED", "COMPLETED"}:
+                    if final_status == "FAILED":
                         raise AssertionError(f"task reached unexpected terminal state: {final_status}")
                     time.sleep(0.5)
                 else:
@@ -86,6 +89,27 @@ class TestSubmitFlow:
         )
         assert r.status_code == 200
         assert r.json()["new_balance"] > 0
+
+    def test_admin_credits_idempotency_key_prevents_duplicate_topup(self, client: httpx.Client) -> None:
+        payload = {
+            "user_id": "a0000000-0000-0000-0000-000000000001",
+            "amount": 37,
+            "idempotency_key": f"sol5-topup-{uuid4()}",
+        }
+
+        first = client.post("/v1/admin/credits", json=payload)
+        second = client.post("/v1/admin/credits", json=payload)
+
+        assert first.status_code == 200
+        assert second.status_code == 200
+        assert second.json()["new_balance"] == first.json()["new_balance"]
+
+    def test_admin_credits_rejects_unknown_user(self, client: httpx.Client) -> None:
+        r = client.post(
+            "/v1/admin/credits",
+            json={"user_id": "f0000000-0000-0000-0000-000000000099", "amount": 25},
+        )
+        assert r.status_code == 404
 
     def test_submit_rejects_unknown_payload_fields(self, client: httpx.Client) -> None:
         r = client.post(

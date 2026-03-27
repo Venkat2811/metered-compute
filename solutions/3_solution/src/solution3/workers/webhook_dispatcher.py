@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import signal
 import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
@@ -25,6 +26,7 @@ from solution3.observability.metrics import (
     WEBHOOK_DELIVERIES_TOTAL,
     WEBHOOK_DELIVERY_DURATION_SECONDS,
 )
+from solution3.services.webhook_security import ensure_callback_url_delivery_safe
 from solution3.utils.logging import configure_logging, get_logger
 
 try:
@@ -183,6 +185,7 @@ async def process_message(
     max_attempts: int,
     initial_backoff_seconds: float,
     max_backoff_seconds: float,
+    app_env: str | None = None,
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
 ) -> bool:
     decoded = json.loads(message.value.decode("utf-8"))
@@ -202,6 +205,35 @@ async def process_message(
 
     payload = _terminal_webhook_payload(decoded)
     start = time.perf_counter()
+    effective_app_env = app_env if app_env is not None else os.getenv("APP_ENV", "dev")
+    try:
+        await ensure_callback_url_delivery_safe(
+            callback_url,
+            app_env=effective_app_env,
+        )
+    except ValueError as exc:
+        duration = time.perf_counter() - start
+        await insert_webhook_dead_letter(
+            db_pool,
+            event_id=event_id,
+            task_id=task_id,
+            topic=message.topic,
+            callback_url=callback_url,
+            payload=payload,
+            attempts=0,
+            last_error="unsafe_callback_url",
+        )
+        logger.warning(
+            "webhook_unsafe_callback_blocked",
+            event_id=str(event_id),
+            task_id=str(task_id),
+            topic=message.topic,
+            callback_url=callback_url,
+            error=str(exc),
+        )
+        WEBHOOK_DELIVERIES_TOTAL.labels(result="dead_letter").inc()
+        WEBHOOK_DELIVERY_DURATION_SECONDS.labels(result="dead_letter").observe(duration)
+        return True
     delivered, attempts, last_error = await _deliver_with_retries(
         http_client=http_client,
         callback_url=callback_url,
@@ -373,6 +405,10 @@ async def _main_async(
                     max_attempts=max_attempts,
                     initial_backoff_seconds=initial_backoff_seconds,
                     max_backoff_seconds=max_backoff_seconds,
+                    process_message_fn=lambda **kwargs: process_message(
+                        **kwargs,
+                        app_env=settings.app_env,
+                    ),
                 )
                 if processed > 0:
                     logger.info("webhook_worker_batch_processed", count=processed)

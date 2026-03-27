@@ -1,6 +1,6 @@
 # 5_solution: TigerBeetle + Restate Showcase
 
-Minimal implementation (~700 LOC) demonstrating that **TigerBeetle** (double-entry accounting) and
+Compact implementation (~1.8k Python LOC) demonstrating that **TigerBeetle** (double-entry accounting) and
 **Restate** (durable execution) replace thousands of lines of application infrastructure while
 providing stronger correctness guarantees.
 
@@ -80,7 +80,7 @@ Report: `worklog/evidence/load/loadtest-latest.json` — includes p50/p95/p99 la
 
 | Metric                | Sol 0 | Sol 2  | **Sol 5** |
 |-----------------------|-------|--------|-----------|
-| Python LOC            | ~800  | ~3,000 | **~700**  |
+| Python LOC            | ~800  | ~3,000 | **~1,800** |
 | PG tables             | 3     | 8+     | **3**     |
 | Running containers    | 7     | 12     | **8 (+1 init)** |
 | Outbox / relay        | No    | Yes    | **No**    |
@@ -231,6 +231,7 @@ Client → FastAPI (port 8000) → TigerBeetle (billing: reserve/capture/void)
 ├── src
 │   └── solution5
 └── tests
+    ├── fault
     ├── integration
     └── unit
 ```

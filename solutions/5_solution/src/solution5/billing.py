@@ -139,7 +139,11 @@ class Billing:
         )
         errors = self._client.create_transfers([transfer])
         if errors:
-            log.warning("topup_failed", user_id=user_id, amount=amount, error=errors[0].result)
+            error = errors[0].result
+            if error == tb.CreateTransferResult.EXISTS:
+                log.info("credits_topup_replayed", user_id=user_id, amount=amount, transfer_id=transfer_id)
+                return True
+            log.warning("topup_failed", user_id=user_id, amount=amount, error=error)
             return False
         metrics.CREDIT_TOPUP.inc()
         log.info("credits_topped_up", user_id=user_id, amount=amount)

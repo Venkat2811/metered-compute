@@ -35,7 +35,7 @@ metered-compute/
     |   |-- RFC-0002-2-solution-service-grade-platform/
     |   |   `-- README.md                  # Sol 2 architecture
     |   |-- RFC-0003-3-solution-financial-core/
-    |   |   `-- README.md                  # Sol 3 (RFC only)
+    |   |   `-- README.md                  # Sol 3 architecture
     |   |-- RFC-0004-4-solution-production-launch/
     |   |   `-- README.md                  # Sol 4 (RFC only)
     |   `-- RFC-0005-5-solution-tb-restate-showcase/
@@ -47,7 +47,7 @@ metered-compute/
     |-- 2_solution/
     |   `-- README.md                      # implemented: CQRS + RabbitMQ + reservations
     |-- 3_solution/
-    |   `-- README.md                      # track stub (RFC-only implementation target)
+    |   `-- README.md                      # implemented: TigerBeetle + Redpanda + CQRS
     |-- 4_solution/
     |   `-- README.md                      # track stub (RFC-only launch blueprint)
     `-- 5_solution/

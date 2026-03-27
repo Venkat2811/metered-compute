@@ -33,6 +33,7 @@ from solution3.services.auth import (
     runtime_state_from_request,
 )
 from solution3.services.billing import ReserveCreditsResult
+from solution3.services.webhook_security import validate_callback_url_format
 from solution3.utils.logging import get_logger
 
 AUTHENTICATED_USER = Depends(require_authenticated_user)
@@ -173,6 +174,15 @@ def register_task_write_routes(router: APIRouter) -> None:
             idempotency_value = _validate_idempotency(
                 idempotency_key, generated_task_id=generated_task_id
             )
+        except ValueError as exc:
+            TASK_SUBMISSIONS_TOTAL.labels(result="bad_request").inc()
+            return api_error_response(status_code=400, code="BAD_REQUEST", message=str(exc))
+        try:
+            if payload.callback_url is not None:
+                validate_callback_url_format(
+                    payload.callback_url,
+                    app_env=runtime.settings.app_env,
+                )
         except ValueError as exc:
             TASK_SUBMISSIONS_TOTAL.labels(result="bad_request").inc()
             return api_error_response(status_code=400, code="BAD_REQUEST", message=str(exc))

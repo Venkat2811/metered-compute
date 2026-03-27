@@ -46,6 +46,12 @@ async def get_user_by_api_key(pool: asyncpg.Pool, api_key: str) -> dict[str, Any
     return dict(row) if row else None
 
 
+async def get_user_by_id(pool: asyncpg.Pool, user_id: str) -> dict[str, Any] | None:
+    """Look up user by id for admin operations that must target existing principals."""
+    row = await pool.fetchrow("SELECT user_id, name, credits, role FROM users WHERE user_id = $1::uuid", user_id)
+    return dict(row) if row else None
+
+
 async def create_task(
     pool: asyncpg.Pool,
     *,

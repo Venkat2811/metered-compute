@@ -189,7 +189,7 @@ async def test_record_admin_credit_topup_persists_outbox_event() -> None:
         amount=25,
         reason="integration-topup",
         admin_user_id=admin_user_id,
-        api_key="c9169bc2-2980-4155-be29-442ffc44ce64",
+        api_key_masked="c56a...0538",
         new_balance=275,
         transfer_id=transfer_id,
     )
@@ -204,7 +204,7 @@ async def test_record_admin_credit_topup_persists_outbox_event() -> None:
         "amount": 25,
         "reason": "integration-topup",
         "admin_user_id": str(admin_user_id),
-        "api_key": "c9169bc2-2980-4155-be29-442ffc44ce64",
+        "target_api_key_masked": "c56a...0538",
         "new_balance": 275,
         "transfer_id": str(transfer_id),
     }

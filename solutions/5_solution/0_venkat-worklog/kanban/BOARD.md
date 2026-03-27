@@ -94,3 +94,4 @@ Priority: `P0` (blocker), `P1` (must-have), `P2` (nice-to-have)
 - `done/P0-003-solution5-service-surface-proof.md`
 - `done/P1-004-solution5-observability-and-doc-alignment.md`
 - `done/P1-005-solution5-failure-release-proof.md`
+- `done/P0-006-solution5-cancel-topup-and-poll-integrity.md`

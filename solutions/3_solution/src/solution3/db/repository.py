@@ -273,7 +273,7 @@ async def record_admin_credit_topup(
     amount: int,
     reason: str,
     admin_user_id: UUID,
-    api_key: str,
+    api_key_masked: str,
     new_balance: int,
     transfer_id: UUID,
 ) -> None:
@@ -292,7 +292,7 @@ async def record_admin_credit_topup(
                     "amount": amount,
                     "reason": reason,
                     "admin_user_id": str(admin_user_id),
-                    "api_key": api_key,
+                    "target_api_key_masked": api_key_masked,
                     "new_balance": new_balance,
                     "transfer_id": str(transfer_id),
                 }

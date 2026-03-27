@@ -83,7 +83,7 @@ What is already real:
 - rebuild tooling that can restore the projection from SQL or replay the Redpanda task log from offset 0
 - real reconciler path for stale `RESERVED` tasks: one-shot or looped scan, guarded transition to `EXPIRED`, Redis hot-path update, active-slot release, and `tasks.expired` outbox emission
 - explicit TigerBeetle drift alignment for stale `RESERVED` tasks whose pending transfer has already been posted or voided, with command/query/outbox correction back to terminal state
-- real webhook worker that consumes terminal Redpanda events, looks up `callback_url` from the command store, retries delivery with bounded exponential backoff, and persists exhausted deliveries into `cmd.webhook_dead_letters`
+- real webhook worker that consumes terminal Redpanda events, looks up `callback_url` from the command store, blocks unsafe local/private callback targets outside the local Docker-dev allowlist, retries delivery with bounded exponential backoff, and persists exhausted deliveries into `cmd.webhook_dead_letters`
 - outbox relay and dispatcher contract seams with unit-tested publish/flush behavior
 - worker-shaped entrypoints for `dispatcher`, `projector`, `reconciler`, `worker`, and `webhook-worker`
 - isolated test suite in `tests_bootstrap/` covering unit, integration, e2e, and fault slices for the implemented scope
@@ -113,9 +113,10 @@ Repository shape:
 |-- docker
 |   |-- api
 |   |-- dispatcher
+|   |-- hydra
+|   |-- outbox_relay
 |   |-- postgres
 |   |-- projector
-|   |-- outbox_relay
 |   |-- reconciler
 |   |-- webhook_worker
 |   `-- worker
@@ -154,7 +155,9 @@ src/solution3
 |-- observability
 |   `-- metrics.py
 |-- services
-|   `-- auth.py
+|   |-- auth.py
+|   |-- billing.py
+|   `-- webhook_security.py
 |-- utils
 |   `-- logging.py
 `-- workers
@@ -162,6 +165,7 @@ src/solution3
     |-- dispatcher.py
     |-- outbox_relay.py
     |-- projector.py
+    |-- rebuilder.py
     |-- reconciler.py
     |-- webhook_dispatcher.py
     `-- worker.py

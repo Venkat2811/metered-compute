@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+import tigerbeetle as tb
+
 from solution5.billing import Billing, _user_id_to_u128
 
 
@@ -55,6 +57,15 @@ class TestBilling:
     def test_topup_credits_success(self) -> None:
         self.mock_client.create_transfers.return_value = []
         result = self.billing.topup_credits("a0000000-0000-0000-0000-000000000001", 99999, 500)
+        assert result is True
+
+    def test_topup_credits_treats_exact_duplicate_transfer_as_success(self) -> None:
+        error = MagicMock()
+        error.result = tb.CreateTransferResult.EXISTS
+        self.mock_client.create_transfers.return_value = [error]
+
+        result = self.billing.topup_credits("a0000000-0000-0000-0000-000000000001", 99999, 500)
+
         assert result is True
 
     def test_get_balance(self) -> None:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from collections.abc import Mapping
 from typing import Any
 
 import redis.asyncio as redis
@@ -34,17 +36,46 @@ async def get_cached_auth(r: redis.Redis, api_key: str) -> dict[str, str] | None
 
 async def cache_task(r: redis.Redis, task_id: str, task: dict[str, Any]) -> None:
     """Cache task data."""
-    flat = {k: str(v) for k, v in task.items() if v is not None}
+    flat: dict[str, str] = {}
+    for key, value in normalize_task_payload(task).items():
+        if key == "result":
+            flat[key] = json.dumps(value, separators=(",", ":"))
+        else:
+            flat[key] = str(value)
     await r.hset(f"task:{task_id}", mapping=flat)  # type: ignore[misc]
     await r.expire(f"task:{task_id}", TASK_TTL)
 
 
-async def get_cached_task(r: redis.Redis, task_id: str) -> dict[str, str] | None:
+async def get_cached_task(r: redis.Redis, task_id: str) -> dict[str, Any] | None:
     """Get cached task."""
     data: dict[bytes, bytes] = await r.hgetall(f"task:{task_id}")  # type: ignore[misc]
-    return {k.decode(): v.decode() for k, v in data.items()} if data else None
+    if not data:
+        return None
+
+    decoded: dict[str, Any] = {}
+    for raw_key, raw_value in data.items():
+        key = raw_key.decode()
+        value = raw_value.decode()
+        if key == "result":
+            decoded[key] = json.loads(value)
+        else:
+            decoded[key] = value
+    return decoded
 
 
 async def invalidate_task(r: redis.Redis, task_id: str) -> None:
     """Remove task from cache."""
     await r.delete(f"task:{task_id}")
+
+
+def normalize_task_payload(task: Mapping[str, Any]) -> dict[str, Any]:
+    """Prepare task payloads for API responses while preserving structured result JSON."""
+    normalized: dict[str, Any] = {}
+    for key, value in task.items():
+        if value is None:
+            continue
+        if key == "result":
+            normalized[key] = value
+        else:
+            normalized[key] = str(value)
+    return normalized

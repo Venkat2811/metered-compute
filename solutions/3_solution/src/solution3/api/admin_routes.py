@@ -109,7 +109,7 @@ def register_admin_routes(router: APIRouter) -> None:
                 amount=payload.amount,
                 reason=payload.reason,
                 admin_user_id=current_user.user_id,
-                api_key=payload.api_key,
+                api_key_masked=_mask_api_key(payload.api_key),
                 new_balance=new_balance,
                 transfer_id=transfer_id,
             )

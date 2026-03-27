@@ -12,6 +12,7 @@ import time
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager, suppress
 from typing import Any
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 import asyncpg
 import httpx
@@ -23,7 +24,7 @@ import uuid6
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from prometheus_client import generate_latest
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from solution5 import cache, metrics, repository
 from solution5.billing import Billing
@@ -59,12 +60,33 @@ class CancelResponse(BaseModel):
 
 class AdminCreditsRequest(BaseModel):
     user_id: str
-    amount: int
+    amount: int = Field(gt=0)
+    transfer_id: UUID | None = None
+    idempotency_key: str | None = Field(default=None, min_length=1, max_length=128)
+
+    model_config = {"extra": "forbid"}
 
 
 class AdminCreditsResponse(BaseModel):
     user_id: str
     new_balance: int
+
+
+def _derive_admin_topup_transfer_id(
+    *,
+    admin_user_id: str,
+    target_user_id: str,
+    amount: int,
+    transfer_id: UUID | None,
+    idempotency_key: str | None,
+) -> int:
+    if transfer_id is not None:
+        return int(transfer_id.hex, 16)
+    if idempotency_key is None:
+        return int(uuid6.uuid7().hex, 16)
+
+    canonical = f"solution5-admin-topup|{admin_user_id}|{idempotency_key}"
+    return int(uuid5(NAMESPACE_URL, canonical).hex, 16)
 
 
 def _auth_payload_from_cache(payload: dict[str, str] | None) -> dict[str, str] | None:
@@ -449,7 +471,7 @@ def create_app() -> FastAPI:
         return SubmitResponse(task_id=task_id, status="PENDING")
 
     @app.get("/v1/poll")
-    async def poll_task(task_id: str, request: Request) -> dict[str, str]:
+    async def poll_task(task_id: str, request: Request) -> dict[str, Any]:
         user = await authenticate(request)
 
         cached = await cache.get_cached_task(request.app.state.redis, task_id)
@@ -464,7 +486,7 @@ def create_app() -> FastAPI:
         if str(task["user_id"]) != user["user_id"]:
             raise HTTPException(403, "Not your task")
 
-        task_dict = {k: str(v) for k, v in task.items() if v is not None}
+        task_dict = cache.normalize_task_payload(task)
         await cache.cache_task(request.app.state.redis, task_id, task_dict)
         return task_dict
 
@@ -540,8 +562,18 @@ def create_app() -> FastAPI:
         _ensure_admin(user)
         billing: Billing = request.app.state.billing
 
+        target_user = await repository.get_user_by_id(request.app.state.pg_pool, body.user_id)
+        if target_user is None:
+            raise HTTPException(404, "User not found")
+
         billing.ensure_user_account(body.user_id)
-        transfer_int = int(uuid6.uuid7().hex, 16)
+        transfer_int = _derive_admin_topup_transfer_id(
+            admin_user_id=user["user_id"],
+            target_user_id=body.user_id,
+            amount=body.amount,
+            transfer_id=body.transfer_id,
+            idempotency_key=body.idempotency_key,
+        )
         if not billing.topup_credits(body.user_id, transfer_int, body.amount):
             raise HTTPException(500, "Topup failed")
 

@@ -83,7 +83,7 @@ Default demo: `0_solution` (assignment-faithful, minimal containers)
 Flagship demo: `1_solution` (zero-Postgres hot path, answers "reduce DB calls" directly)
 CQRS demo: `2_solution` (reservation billing, outbox pattern, RabbitMQ SLA routing)
 Launch blueprint: `4_solution` (RFC only — Sol 1 speed + Sol 2 correctness)
-TB + Restate showcase: `5_solution` (TigerBeetle billing + Restate durable execution, ~700 LOC)
+TB + Restate showcase: `5_solution` (TigerBeetle billing + Restate durable execution, ~1.8k LOC)
 
 ## Containers per solution
 
@@ -139,7 +139,7 @@ Solution 5 has 8 long-lived containers plus the one-shot `tb-init` formatter —
 | **Dashboards**        | Grafana                               | Grafana                                                                          | Grafana                        | Grafana                                       | Grafana (from Sol 1)                            | Grafana                                        |
 | **Containers**        | ~7                                    | ~9                                                                               | ~12                            | ~15                                           | ~10 (Sol 1 base + outbox-relay from Sol 2)      | ~8                                             |
 | **PG on hot path**    | Auth miss only                        | Submit + worker writes (poll/auth zero-PG; revocation PG fallback if Redis down) | Command writes (txn)           | Command metadata only                         | Admission zero-PG (Sol 1); post-admission PG+outbox | Metadata only (billing in TB)                  |
-| **Key strength**      | Simple, complete, assignment-faithful | Zero-PG hot path                                                                 | Correct under all failures     | Financial-grade + replayable + model-affinity | Sol 1 speed + Sol 2 correctness, minimal infra  | ~700 LOC, Jepsen-verified billing, auto-replay |
+| **Key strength**      | Simple, complete, assignment-faithful | Zero-PG hot path                                                                 | Correct under all failures     | Financial-grade + replayable + model-affinity | Sol 1 speed + Sol 2 correctness, minimal infra  | ~1.8k LOC, Jepsen-verified billing, auto-replay |
 
 ## Cross-cutting decisions
 

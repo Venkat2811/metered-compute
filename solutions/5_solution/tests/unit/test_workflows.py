@@ -261,3 +261,37 @@ class TestExecuteTaskLifecycle:
             retry_attempts=ANY,
             model_class="default",
         )
+
+    @pytest.mark.asyncio
+    async def test_late_cancel_after_capture_completes_task_instead_of_leaving_cancel_requested(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        _, billing, _ = self._set_state(monkeypatch)
+        billing.capture_credits = MagicMock(return_value=True)
+        monkeypatch.setattr(
+            workflows,
+            "request_compute_sync",
+            lambda **_: {"sum": 9, "product": 20},
+        )
+        update_status = AsyncMock(side_effect=[True, False, True])
+        monkeypatch.setattr(repository, "update_task_status_if_match", update_status)
+        monkeypatch.setattr(
+            repository,
+            "get_task_status",
+            AsyncMock(side_effect=["RUNNING", "CANCEL_REQUESTED"]),
+        )
+        workflow_cache_task = AsyncMock()
+        monkeypatch.setattr(cache_module, "cache_task", workflow_cache_task)
+
+        response = await self._run_execute_task(
+            {"task_id": "t-late", "tb_transfer_id": "8", "x": 4, "y": 5},
+            [],
+        )
+
+        assert response == {"status": "COMPLETED", "result": {"sum": 9, "product": 20}}
+        assert update_status.await_args_list[2].kwargs["expected_status"] == "CANCEL_REQUESTED"
+        cache_call = workflow_cache_task.await_args
+        assert cache_call is not None
+        cached_payload = cache_call.args[2]
+        assert cached_payload["result"] == {"sum": 9, "product": 20}

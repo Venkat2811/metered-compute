@@ -115,3 +115,4 @@ Priority: `P0` (blocker), `P1` (must-have), `P2` (nice-to-have)
 - `done/P1-007-solution3-admin-topup-alignment.md`
 - `done/P1-008-solution3-rfc-hardening-and-integrity.md`
 - `done/P2-009-solution3-admin-topup-idempotent-retry.md`
+- `done/P1-010-solution3-security-and-doc-cleanup.md`
