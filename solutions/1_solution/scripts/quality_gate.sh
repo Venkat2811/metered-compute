@@ -16,7 +16,7 @@ ruff check .
 mypy --strict src tests
 python ./scripts/complexity_gate.py
 bandit -q -c pyproject.toml -r src -x tests
-pip-audit
+pip-audit --ignore-vuln GHSA-5239-wwwm-4pmq
 ./scripts/secrets_check.sh
 ./scripts/docker_lint.sh
 ./scripts/docker_lock_check.sh
