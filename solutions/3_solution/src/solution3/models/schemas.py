@@ -67,6 +67,8 @@ class AdminCreditsRequest(BaseModel):
     api_key: str = Field(min_length=36, max_length=36)
     amount: int = Field(gt=0)
     reason: str = Field(min_length=1, max_length=64)
+    transfer_id: UUID | None = None
+    idempotency_key: str | None = Field(default=None, min_length=1, max_length=128)
 
 
 class AdminCreditsResponse(BaseModel):

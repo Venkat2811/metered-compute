@@ -113,6 +113,37 @@ class FakeBilling:
         return self.balance
 
 
+class FakeBillingWithTransferIdDedup(FakeBilling):
+    def __init__(
+        self,
+        *,
+        reserve_result: ReserveCreditsResult = ReserveCreditsResult.ACCEPTED,
+        void_ok: bool = True,
+        topup_ok: bool = True,
+        balance: int = 500,
+    ) -> None:
+        super().__init__(
+            reserve_result=reserve_result,
+            void_ok=void_ok,
+            topup_ok=topup_ok,
+            balance=balance,
+        )
+        self._seen_transfers: set[UUID] = set()
+
+    def topup_credits(
+        self,
+        *,
+        user_id: UUID | str,
+        transfer_id: UUID | str,
+        amount: int,
+    ) -> bool:
+        transfer_uuid = UUID(str(transfer_id))
+        if transfer_uuid in self._seen_transfers:
+            return True
+        self._seen_transfers.add(transfer_uuid)
+        return super().topup_credits(user_id=user_id, transfer_id=transfer_uuid, amount=amount)
+
+
 def _settings() -> SimpleNamespace:
     return SimpleNamespace(
         app_name="mc-solution3",
@@ -641,6 +672,7 @@ def test_admin_credits_topups_target_user_for_admin(monkeypatch: pytest.MonkeyPa
         tier=SubscriptionTier.FREE,
         scopes=frozenset(),
     )
+    transfer_id = uuid7()
     recorded_events: list[dict[str, object]] = []
 
     async def fake_fetch_active_user_by_api_key(*_: object, **kwargs: object) -> AuthUser | None:
@@ -669,6 +701,7 @@ def test_admin_credits_topups_target_user_for_admin(monkeypatch: pytest.MonkeyPa
                 "api_key": target_user.api_key,
                 "amount": 25,
                 "reason": "unit-test-topup",
+                "transfer_id": str(transfer_id),
             },
         )
 
@@ -676,6 +709,7 @@ def test_admin_credits_topups_target_user_for_admin(monkeypatch: pytest.MonkeyPa
     assert response.json() == {"api_key": target_user.api_key, "new_balance": 275}
     assert billing.ensure_user_calls == [(target_user.user_id, 0)]
     assert len(billing.topup_calls) == 1
+    assert billing.topup_calls[0][1] == transfer_id
     assert billing.topup_calls[0][0] == target_user.user_id
     assert billing.topup_calls[0][2] == 25
     assert billing.balance_calls == [target_user.user_id]
@@ -684,6 +718,69 @@ def test_admin_credits_topups_target_user_for_admin(monkeypatch: pytest.MonkeyPa
     assert recorded_events[0]["reason"] == "unit-test-topup"
     assert recorded_events[0]["admin_user_id"] == admin_user.user_id
     assert str(recorded_events[0]["transfer_id"]) == str(billing.topup_calls[0][1])
+
+
+def test_admin_credits_retries_are_idempotent_with_idempotency_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from solution3.api import admin_routes
+
+    target_user = AuthUser(
+        api_key="c9169bc2-2980-4155-be29-442ffc44ce64",
+        user_id=UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+        name="test-user-2",
+        role=UserRole.USER,
+        tier=SubscriptionTier.FREE,
+        scopes=frozenset(),
+    )
+    attempt = {"outbox_calls": 0}
+
+    async def fake_fetch_active_user_by_api_key(*_: object, **__: object) -> AuthUser | None:
+        return target_user
+
+    async def fail_once_then_succeed(*_: object, **__: object) -> None:
+        attempt["outbox_calls"] += 1
+        if attempt["outbox_calls"] == 1:
+            raise RuntimeError("outbox unavailable")
+
+    monkeypatch.setattr(
+        admin_routes, "fetch_active_user_by_api_key", fake_fetch_active_user_by_api_key
+    )
+    monkeypatch.setattr(admin_routes, "record_admin_credit_topup", fail_once_then_succeed)
+
+    admin_user = _auth_user(role=UserRole.ADMIN)
+    client, _, billing = _client(
+        monkeypatch,
+        current_user=admin_user,
+        billing_client=FakeBillingWithTransferIdDedup(balance=250),
+    )
+    payload = {
+        "api_key": target_user.api_key,
+        "amount": 25,
+        "reason": "unit-test-idempotent-topup",
+        "idempotency_key": "topup-idempotent-key",
+    }
+
+    with client:
+        first = client.post(
+            "/v1/admin/credits",
+            headers={"Authorization": "Bearer jwt.header.signature"},
+            json=payload,
+        )
+        second = client.post(
+            "/v1/admin/credits",
+            headers={"Authorization": "Bearer jwt.header.signature"},
+            json=payload,
+        )
+
+    assert first.status_code == 503
+    assert first.json()["error"]["code"] == "SERVICE_DEGRADED"
+    assert second.status_code == 200
+    assert second.json() == {"api_key": target_user.api_key, "new_balance": 275}
+    assert billing.balance == 275
+    assert len(billing.topup_calls) == 1
+    assert billing.topup_calls[0][2] == 25
+    assert attempt["outbox_calls"] == 2
 
 
 def test_admin_credits_returns_not_found_for_unknown_target_api_key(
@@ -905,3 +1002,39 @@ def test_cancel_returns_200_when_billing_void_fails_after_db_cancel(
         )
 
     assert response.status_code == 200
+
+
+def test_cancel_returns_200_when_billing_void_reports_false_after_db_cancel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from solution3.api import task_write_routes
+
+    command = _task_command(
+        task_id=uuid7(),
+        user_id=_auth_user().user_id,
+        status=TaskStatus.PENDING,
+        billing_state=BillingState.RESERVED,
+    )
+
+    async def fake_get_task_command(*_: object, **__: object) -> TaskCommand:
+        return command
+
+    async def fake_cancel(*_: object, **__: object) -> bool:
+        return True
+
+    async def fake_release(*_: object, **__: object) -> bool:
+        return False
+
+    monkeypatch.setattr(task_write_routes, "get_task_command", fake_get_task_command)
+    monkeypatch.setattr(task_write_routes, "cancel_task_command", fake_cancel)
+    monkeypatch.setattr(task_write_routes, "_release_pending_transfer", fake_release)
+
+    client, _, _ = _client(monkeypatch, current_user=_auth_user())
+    with client:
+        response = client.post(
+            f"/v1/task/{command.task_id}/cancel",
+            headers={"Authorization": "Bearer jwt.header.signature"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "CANCELLED"

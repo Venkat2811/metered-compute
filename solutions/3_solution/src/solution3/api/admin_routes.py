@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from uuid import NAMESPACE_DNS, UUID, uuid5
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
@@ -21,6 +22,20 @@ from solution3.utils.logging import get_logger
 
 AUTHENTICATED_USER = Depends(require_authenticated_user)
 logger = get_logger("solution3.admin")
+
+
+def _derive_transfer_id_for_admin_topup(
+    *,
+    target_user_id: UUID,
+    admin_user_id: UUID,
+    amount: int,
+    reason: str,
+    idempotency_key: str | None,
+) -> UUID:
+    if idempotency_key is None:
+        return uuid7()
+    canonical = f"{target_user_id}|{admin_user_id}|{amount}|{reason}|{idempotency_key}"
+    return uuid5(NAMESPACE_DNS, canonical)
 
 
 def _mask_api_key(api_key: str) -> str:
@@ -59,7 +74,13 @@ def register_admin_routes(router: APIRouter) -> None:
                 message="User not found",
             )
 
-        transfer_id = uuid7()
+        transfer_id = payload.transfer_id or _derive_transfer_id_for_admin_topup(
+            target_user_id=target_user.user_id,
+            admin_user_id=current_user.user_id,
+            amount=payload.amount,
+            reason=payload.reason,
+            idempotency_key=payload.idempotency_key,
+        )
         try:
             await asyncio.to_thread(
                 runtime.billing_client.ensure_user_account,
