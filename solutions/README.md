@@ -103,7 +103,7 @@ Notes:
   - `hydra-migrate`, `hydra-client-init` in solutions 1, 2, 3
   - `migrate`, `tb-init` in solution 3
   - `tb-init` in solution 5
-  - optional tracing profiles (`tempo`, `otel-collector`) in solutions 1, 2, 3 (1&2 also include `otel-collector`)
+- optional tracing profiles in solutions 1 and 2 include `tempo` + `otel-collector`; solution 3 includes `tempo` only
 
 Solution 3 is implemented without the optional analytics profile. With ClickHouse enabled later, Sol 3 would be ~17 containers.
 Solution 4 is the remaining RFC-only launch blueprint that picks Sol 1 hot path + Sol 2 outbox.
