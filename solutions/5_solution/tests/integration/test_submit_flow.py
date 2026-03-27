@@ -13,6 +13,8 @@ import httpx
 import pytest
 
 BASE = os.environ.get("API_BASE_URL", "http://localhost:8000")
+COMPUTE_BASE = os.environ.get("COMPUTE_BASE_URL", "http://localhost:8001")
+PROMETHEUS_BASE = os.environ.get("PROMETHEUS_BASE_URL", "http://localhost:9090")
 API_KEY = "sk-alice-secret-key-001"
 HEADERS = {"Authorization": f"Bearer {API_KEY}"}
 
@@ -114,3 +116,46 @@ class TestSubmitFlow:
             json={"x": 2, "y": 3},
         )
         assert r.status_code in {200, 201}
+
+    def test_compute_worker_exposes_metrics(self) -> None:
+        compute = httpx.Client(base_url=COMPUTE_BASE, timeout=10)
+        try:
+            r = compute.post("/compute", json={"task_id": "metrics-task", "x": 5, "y": 6})
+            assert r.status_code == 200
+
+            metrics_response = compute.get("/metrics")
+            assert metrics_response.status_code == 200
+            assert "compute_requests_total" in metrics_response.text
+            assert "compute_request_seconds" in metrics_response.text
+        finally:
+            compute.close()
+
+    def test_prometheus_targets_include_api_and_compute(self) -> None:
+        prometheus = httpx.Client(base_url=PROMETHEUS_BASE, timeout=10)
+        try:
+            jobs: dict[str, str] = {}
+            for _ in range(30):
+                try:
+                    r = prometheus.get("/api/v1/targets")
+                    assert r.status_code == 200
+
+                    active_targets = r.json()["data"]["activeTargets"]
+                    jobs = {target["labels"]["job"]: target["health"] for target in active_targets}
+                    if jobs.get("solution5-api") == "up" and jobs.get("solution5-compute") == "up":
+                        break
+                except httpx.ConnectError:
+                    pass
+                time.sleep(0.5)
+            else:
+                raise AssertionError(f"prometheus targets not healthy: {jobs}")
+        finally:
+            prometheus.close()
+
+    def test_api_metrics_record_http_latency(self, client: httpx.Client) -> None:
+        health = client.get("/health")
+        assert health.status_code == 200
+
+        metrics_response = client.get("/metrics")
+        assert metrics_response.status_code == 200
+        assert "http_request_duration_seconds_count" in metrics_response.text
+        assert 'endpoint="/health"' in metrics_response.text

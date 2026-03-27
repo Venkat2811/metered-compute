@@ -32,7 +32,7 @@ help:
 	@echo "  capture-logs      Capture compose + metrics logs to LOG_DIR"
 	@echo "  reset-state       Reset PG+Redis state for clean test runs"
 	@echo "  demo              Run demo script"
-	@echo "  scenarios         Run 12 scenario checks against live stack"
+	@echo "  scenarios         Run 13 scenario checks against live stack"
 	@echo "  loadtest          Sustained load test (default: 100 RPS × 30s)"
 	@echo "  prove             Single-command full verification (quality+coverage+stack+integration+scenarios)"
 	@echo "  full-check        Alias for prove"

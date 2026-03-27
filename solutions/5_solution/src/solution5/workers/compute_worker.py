@@ -7,9 +7,12 @@ import hashlib
 import time
 from dataclasses import dataclass
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.responses import JSONResponse
+from prometheus_client import generate_latest
 from pydantic import BaseModel
+
+from solution5 import metrics
 
 
 class ComputeRequest(BaseModel):
@@ -19,8 +22,7 @@ class ComputeRequest(BaseModel):
     user_id: str | None = None
     model_class: str | None = None
 
-    class Config:
-        extra = "ignore"
+    model_config = {"extra": "ignore"}
 
 
 @dataclass(frozen=True)
@@ -78,18 +80,33 @@ def create_app() -> FastAPI:
 
     @app.post("/compute")
     async def compute(request: ComputeRequest) -> JSONResponse:
+        start = time.perf_counter()
+        result_label = "error"
         if request.task_id == "":
+            result_label = "invalid"
+            metrics.COMPUTE_REQUESTS.labels(result=result_label).inc()
+            metrics.COMPUTE_LATENCY_SECONDS.observe(time.perf_counter() - start)
             return JSONResponse(
                 status_code=422,
                 content={"error": "task_id is required"},
             )
         cached = _is_cached(request.task_id)
         if cached is not None:
+            result_label = "cached"
+            metrics.COMPUTE_REQUESTS.labels(result=result_label).inc()
+            metrics.COMPUTE_LATENCY_SECONDS.observe(time.perf_counter() - start)
             return JSONResponse(status_code=200, content={"task_id": request.task_id, "result": cached})
 
         result = await _compute_with_delay(request.x, request.y)
         await _store_cache(request.task_id, result)
+        result_label = "ok"
+        metrics.COMPUTE_REQUESTS.labels(result=result_label).inc()
+        metrics.COMPUTE_LATENCY_SECONDS.observe(time.perf_counter() - start)
         return JSONResponse(status_code=200, content={"task_id": request.task_id, "result": result})
+
+    @app.get("/metrics")
+    async def prometheus_metrics() -> Response:
+        return Response(generate_latest(), media_type="text/plain; charset=utf-8")
 
     return app
 

@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import asyncio
 import socket
-from collections.abc import AsyncGenerator
+import time
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager, suppress
 from typing import Any
 
@@ -291,6 +292,28 @@ def create_app() -> FastAPI:
         await redis_conn.aclose()
 
     app = FastAPI(title="Solution 4 — TB + Restate", lifespan=lifespan)
+
+    def _endpoint_label(request: Request) -> str:
+        route = request.scope.get("route")
+        return str(getattr(route, "path", request.url.path))
+
+    @app.middleware("http")
+    async def observe_request_metrics(
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
+        start = time.perf_counter()
+        status_code = 500
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+            return response
+        finally:
+            metrics.REQUEST_DURATION.labels(
+                method=request.method,
+                endpoint=_endpoint_label(request),
+                status=str(status_code),
+            ).observe(time.perf_counter() - start)
 
     # Mount Restate service endpoint as ASGI sub-app
     restate_app = restate.app(services=[task_service])

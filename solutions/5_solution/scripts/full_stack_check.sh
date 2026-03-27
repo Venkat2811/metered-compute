@@ -69,7 +69,7 @@ echo "── Phase 4: integration tests ──"
 INTEGRATION=1 pytest tests/integration -v 2>&1 | tee "${artifact_dir}/integration.log"
 
 # ── Phase 5: scenarios ──
-echo "── Phase 5: scenarios (12 scenarios) ──"
+echo "── Phase 5: scenarios (13 scenarios) ──"
 ./scripts/reset_state.sh
 python scripts/run_scenarios.py --output "${artifact_dir}/scenarios.json" 2>&1 | tee "${artifact_dir}/scenarios.log"
 

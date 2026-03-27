@@ -92,11 +92,11 @@ CQRS separation (solutions 2-3) is in the code (separate routers, separate schem
 | 2        | ~12   | api, hydra, worker, outbox-relay, projector, watchdog, webhook-worker                  | redis, postgres, rabbitmq                        | prometheus, grafana |
 | 3        | ~15   | api, hydra, dispatcher, worker(s), outbox-relay, projector, reconciler, webhook-worker | redis, postgres, tigerbeetle, redpanda, rabbitmq | prometheus, grafana |
 | 4 (RFC)  | ~10   | api, hydra, worker, outbox-relay, reaper, webhook-dispatcher                           | redis, postgres                                  | prometheus, grafana |
-| 5        | ~8    | api                                                                                    | redis, postgres, tigerbeetle, tb-init, restate   | prometheus, grafana |
+| 5        | ~8 running (+1 init) | api, compute                                                                       | redis, postgres, tigerbeetle, tb-init, restate   | prometheus, grafana |
 
 Solution 3 is implemented without the optional analytics profile. With ClickHouse enabled later, Sol 3 would be ~17 containers.
 Solution 4 is the remaining RFC-only launch blueprint that picks Sol 1 hot path + Sol 2 outbox.
-Solution 5 has 8 containers total — same as Sol 0, but with TigerBeetle for billing and Restate for durable execution.
+Solution 5 has 8 long-lived containers plus the one-shot `tb-init` formatter — still close to Sol 0 in operational footprint, but with TigerBeetle for billing and Restate for durable execution.
 
 ## Full comparison
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from solution5 import metrics
 from solution5.workers import compute_worker
 
 
@@ -43,3 +44,26 @@ def test_compute_endpoint_is_idempotent() -> None:
     assert response_a.status_code == 200
     assert response_b.status_code == 200
     assert response_a.json() == response_b.json()
+
+
+def test_compute_worker_exposes_metrics_and_records_requests() -> None:
+    client = TestClient(compute_worker.create_app())
+    histogram = next(iter(metrics.COMPUTE_LATENCY_SECONDS.collect()))
+
+    before_ok = metrics.COMPUTE_REQUESTS.labels(result="ok")._value.get()
+    before_latency = next(
+        sample.value for sample in histogram.samples if sample.name == "compute_request_seconds_count"
+    )
+
+    response = client.post("/compute", json={"task_id": "task-metrics", "x": 7, "y": 8})
+    assert response.status_code == 200
+
+    metrics_response = client.get("/metrics")
+
+    assert metrics_response.status_code == 200
+    assert "compute_requests_total" in metrics_response.text
+    assert "compute_request_seconds" in metrics_response.text
+    assert metrics.COMPUTE_REQUESTS.labels(result="ok")._value.get() == before_ok + 1
+    histogram = next(iter(metrics.COMPUTE_LATENCY_SECONDS.collect()))
+    after_latency = next(sample.value for sample in histogram.samples if sample.name == "compute_request_seconds_count")
+    assert after_latency == before_latency + 1

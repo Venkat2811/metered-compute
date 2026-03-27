@@ -82,7 +82,7 @@ Report: `worklog/evidence/load/loadtest-latest.json` — includes p50/p95/p99 la
 |-----------------------|-------|--------|-----------|
 | Python LOC            | ~800  | ~3,000 | **~700**  |
 | PG tables             | 3     | 8+     | **3**     |
-| Containers            | 7     | 12     | **8**     |
+| Running containers    | 7     | 12     | **8 (+1 init)** |
 | Outbox / relay        | No    | Yes    | **No**    |
 | Billing correctness   | SQL   | SQL    | **Jepsen-verified** |
 | Crash recovery        | Manual| Outbox | **Auto-replay** |
@@ -131,7 +131,7 @@ bash scripts/demo.sh
 
 ```bash
 curl -sS -X POST http://localhost:8000/v1/admin/credits \
-  -H "Authorization: Bearer sk-test-alice-key" \
+  -H "Authorization: Bearer sk-alice-secret-key-001" \
   -H "Content-Type: application/json" \
   -d '{"user_id":"<alice-uuid>","amount":100}'
 ```
@@ -142,7 +142,7 @@ Submit tasks until credits are drained, then:
 
 ```bash
 curl -sS -X POST http://localhost:8000/v1/task \
-  -H "Authorization: Bearer sk-test-bob-key" \
+  -H "Authorization: Bearer sk-bob-secret-key-002" \
   -H "Content-Type: application/json" \
   -d '{"x":1,"y":2}'
 ```
@@ -208,8 +208,9 @@ Client → FastAPI (port 8000) → TigerBeetle (billing: reserve/capture/void)
 ## Stack
 
 - API: FastAPI (`src/solution5/app.py`)
+- Compute: external FastAPI worker (`src/solution5/workers/compute_worker.py`)
 - Billing: TigerBeetle double-entry engine (`src/solution5/billing.py`)
-- Workflow: Restate durable execution (`src/solution5/workflows.py`)
+- Workflow: Restate durable control plane (`src/solution5/workflows.py`)
 - Storage: Postgres (metadata), Redis (cache)
 - Observability: Prometheus + Grafana + structured JSON logs
 - Deployment: Docker Compose (`compose.yaml`)
@@ -239,26 +240,31 @@ Source package:
 ```text
 src/solution5/
 ├── __init__.py
-├── app.py          FastAPI routes, auth, lifespan (~200 lines)
-├── billing.py      TigerBeetle client: reserve/capture/void/topup (~120 lines)
-├── workflows.py    Restate durable handler (~65 lines)
-├── repository.py   Postgres queries (~80 lines)
-├── cache.py        Redis cache helpers (~45 lines)
-├── settings.py     Pydantic settings (~30 lines)
-├── logging.py      structlog config (~15 lines)
-└── metrics.py      Prometheus counters (~18 lines)
+├── app.py              FastAPI routes, auth, lifespan
+├── billing.py          TigerBeetle client: reserve/capture/void/topup
+├── cache.py            Redis cache helpers
+├── logging.py          structlog config
+├── metrics.py          Prometheus counters and histograms
+├── repository.py       Postgres queries and migrations
+├── settings.py         Pydantic settings
+├── workflows.py        Restate durable control-plane workflow
+└── workers
+    ├── compute_gateway.py  External compute client used inside Restate steps
+    └── compute_worker.py   Dedicated compute process with its own /metrics
 ```
 
 What each module owns:
 
 - `app.py`: ASGI factory, lifespan (PG + Redis + TB + Restate init), auth middleware, all HTTP routes
 - `billing.py`: TigerBeetle account creation, pending/post/void transfers, topup, balance queries
-- `workflows.py`: Restate service handler — durable task lifecycle (mark running → compute → capture → store → cache)
+- `workflows.py`: Restate service handler — durable task lifecycle (mark running → dispatch compute → capture → store → cache)
 - `repository.py`: Postgres queries — create/get/update tasks, user lookup, migrations
 - `cache.py`: Redis cache-aside for auth and task status
 - `settings.py`: Pydantic settings from environment
 - `logging.py`: structlog JSON configuration
 - `metrics.py`: Prometheus counter/histogram definitions
+- `workers/compute_gateway.py`: HTTP boundary between Restate control plane and compute plane
+- `workers/compute_worker.py`: external compute plane process
 
 ## Transfer lifecycle (TigerBeetle)
 
@@ -275,15 +281,17 @@ Expire:   auto-void after timeout                     → credits returned
 @task_service.handler()
 async def execute_task(ctx, request):
     await mark_running(task_id)                          # control: idempotent
-    result = await ctx.run("compute", compute)           # data plane (inline for demo)
+    result = await ctx.run("compute", request_compute_sync)  # data plane (external worker)
     captured = await ctx.run("capture", capture_credits) # control: journaled
     await store_result(task_id, result)                  # control: idempotent
     await update_cache(task_id, result)                  # control: idempotent
 ```
 
-Restate manages **task lifecycle** (control plane), NOT inference (data plane).
-In production, compute dispatches to a GPU worker pool. In this demo it's inline
-because the compute is trivial (x+y).
+Restate manages **task lifecycle** (control plane), not inference (data plane).
+The shipped implementation already extracts compute into a separate `compute`
+service and calls it through `workers/compute_gateway.py`. That keeps the durable
+workflow focused on state transitions and billing, while compute remains an
+independent failure domain.
 
 If the process crashes between any steps, Restate replays from the last journaled
 step. No outbox table. No relay service. No compensation code.
@@ -316,13 +324,13 @@ Coverage policy:
   - `worklog/baselines/coverage-latest.json`
   - `worklog/baselines/coverage-latest.xml`
 
-Unit tests (39 tests):
+Unit tests:
 
 ```bash
 make test-unit
 ```
 
-Integration tests (now 7 tests, requires compose stack):
+Integration tests (requires compose stack):
 
 ```bash
 make test-integration
@@ -337,5 +345,6 @@ make scenarios
 ## Observability
 
 - API metrics: `http://localhost:8000/metrics`
+- Compute metrics: `http://localhost:8001/metrics`
 - Prometheus: `http://localhost:9090`
-- Grafana: `http://localhost:3000` (default admin/admin)
+- Grafana: `http://localhost:3001` (default admin/admin)

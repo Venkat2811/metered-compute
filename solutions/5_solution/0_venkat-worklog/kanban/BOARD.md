@@ -1,6 +1,6 @@
 # Solution 5 - TB + Restate Showcase
 
-Last updated: 2026-03-26
+Last updated: 2026-03-27
 Scope: `solutions/5_solution`
 
 TigerBeetle double-entry billing + Restate durable execution
@@ -92,3 +92,4 @@ Priority: `P0` (blocker), `P1` (must-have), `P2` (nice-to-have)
 - `done/P0-001-solution5-hardening-auth-readiness.md`
 - `done/P0-002-solution5-restate-external-compute.md`
 - `done/P0-003-solution5-service-surface-proof.md`
+- `done/P1-004-solution5-observability-and-doc-alignment.md`
