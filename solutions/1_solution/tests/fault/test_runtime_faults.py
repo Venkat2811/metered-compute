@@ -9,11 +9,11 @@ from uuid import uuid4
 import httpx
 import pytest
 
-from solution1.core.defaults import DEFAULT_USER1_API_KEY
+from solution1.core.defaults import DEFAULT_ALICE_API_KEY
 from tests.constants import V1_AUTH_REVOKE_PATH, V1_OAUTH_TOKEN_PATH, V1_TASK_POLL_PATH
 
 BASE_URL = os.getenv("FAULT_BASE_URL", "http://localhost:8000")
-USER1_KEY = os.getenv("FAULT_USER1_API_KEY", os.getenv("ALICE_API_KEY", DEFAULT_USER1_API_KEY))
+USER1_KEY = os.getenv("FAULT_USER1_API_KEY", os.getenv("ALICE_API_KEY", DEFAULT_ALICE_API_KEY))
 
 
 def _compose(project_root: Path, *args: str) -> subprocess.CompletedProcess[str]:

@@ -22,7 +22,7 @@ from solution1.core.defaults import (
     DEFAULT_PENDING_MARKER_TTL_SECONDS,
     DEFAULT_TASK_COST,
     DEFAULT_TASK_RESULT_TTL_SECONDS,
-    DEFAULT_USER1_API_KEY,
+    DEFAULT_ALICE_API_KEY,
 )
 from solution1.models.domain import AuthUser, TaskRecord
 from solution1.models.schemas import OAuthTokenRequest
@@ -417,7 +417,7 @@ def test_create_app_submission_failure_branches(monkeypatch: pytest.MonkeyPatch)
     app = app_module.create_app()
 
     user = AuthUser(
-        api_key=DEFAULT_USER1_API_KEY,
+        api_key=DEFAULT_ALICE_API_KEY,
         user_id=TEST_USER_ID,
         name=TEST_USER_NAME,
         role=UserRole.USER,
@@ -535,7 +535,7 @@ def test_create_app_poll_and_admin_additional_branches(monkeypatch: pytest.Monke
 
     user_id = TEST_USER_ID
     user = AuthUser(
-        api_key=DEFAULT_USER1_API_KEY,
+        api_key=DEFAULT_ALICE_API_KEY,
         user_id=user_id,
         name=TEST_USER_NAME,
         role=UserRole.USER,
@@ -735,7 +735,7 @@ def test_jwks_factory_and_oauth_principal_mapping() -> None:
         oauth_user1_tier=SubscriptionTier.PRO,
         oauth_user2_tier=SubscriptionTier.FREE,
         admin_api_key=DEFAULT_ADMIN_API_KEY,
-        alice_api_key=DEFAULT_USER1_API_KEY,
+        alice_api_key=DEFAULT_ALICE_API_KEY,
         bob_api_key="c9169bc2-2980-4155-be29-442ffc44ce64",
         oauth_admin_user_id=UUID("5ba7f2f8-24be-448a-9552-3af6e06e8898"),
         oauth_user1_user_id=TEST_USER_ID,
@@ -774,7 +774,7 @@ async def test_resolve_user_from_jwt_token_branch_coverage(
         oauth_user1_tier=SubscriptionTier.PRO,
         oauth_user2_tier=SubscriptionTier.FREE,
         admin_api_key=DEFAULT_ADMIN_API_KEY,
-        alice_api_key=DEFAULT_USER1_API_KEY,
+        alice_api_key=DEFAULT_ALICE_API_KEY,
         bob_api_key="c9169bc2-2980-4155-be29-442ffc44ce64",
         oauth_admin_user_id=UUID("5ba7f2f8-24be-448a-9552-3af6e06e8898"),
         oauth_user1_user_id=TEST_USER_ID,
@@ -921,7 +921,7 @@ async def test_resolve_user_from_jwt_token_rejects_missing_jti(
         oauth_user1_tier=SubscriptionTier.PRO,
         oauth_user2_tier=SubscriptionTier.FREE,
         admin_api_key=DEFAULT_ADMIN_API_KEY,
-        alice_api_key=DEFAULT_USER1_API_KEY,
+        alice_api_key=DEFAULT_ALICE_API_KEY,
         bob_api_key="c9169bc2-2980-4155-be29-442ffc44ce64",
         oauth_admin_user_id=UUID("5ba7f2f8-24be-448a-9552-3af6e06e8898"),
         oauth_user1_user_id=TEST_USER_ID,
@@ -981,7 +981,7 @@ async def test_resolve_user_from_jwt_token_retries_jwks_lookup_after_key_miss(
         oauth_user1_tier=SubscriptionTier.PRO,
         oauth_user2_tier=SubscriptionTier.FREE,
         admin_api_key=DEFAULT_ADMIN_API_KEY,
-        alice_api_key=DEFAULT_USER1_API_KEY,
+        alice_api_key=DEFAULT_ALICE_API_KEY,
         bob_api_key="c9169bc2-2980-4155-be29-442ffc44ce64",
         oauth_admin_user_id=UUID("5ba7f2f8-24be-448a-9552-3af6e06e8898"),
         oauth_user1_user_id=TEST_USER_ID,
@@ -1062,7 +1062,7 @@ def test_oauth_client_credential_resolution_branches() -> None:
     app.state.runtime = SimpleNamespace(
         settings=SimpleNamespace(
             admin_api_key=DEFAULT_ADMIN_API_KEY,
-            alice_api_key=DEFAULT_USER1_API_KEY,
+            alice_api_key=DEFAULT_ALICE_API_KEY,
             bob_api_key="c9169bc2-2980-4155-be29-442ffc44ce64",
             oauth_admin_client_id="solution1-admin",
             oauth_admin_client_secret="solution1-admin-secret",
@@ -1205,7 +1205,7 @@ async def test_exchange_client_credentials_and_validation_branches(
 
     monkeypatch.setattr(app_module, "is_active_api_key_hash", _is_active)
     assert (
-        await app_module._validate_oauth_api_key(api_key=DEFAULT_USER1_API_KEY, request=request)
+        await app_module._validate_oauth_api_key(api_key=DEFAULT_ALICE_API_KEY, request=request)
         is True
     )
 

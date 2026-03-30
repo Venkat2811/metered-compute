@@ -21,7 +21,7 @@ from solution1.core.defaults import (
     DEFAULT_PENDING_MARKER_TTL_SECONDS,
     DEFAULT_TASK_COST,
     DEFAULT_TASK_RESULT_TTL_SECONDS,
-    DEFAULT_USER1_API_KEY,
+    DEFAULT_ALICE_API_KEY,
 )
 from solution1.core.dependencies import DependencyHealthService
 from solution1.core.runtime import RuntimeState
@@ -60,7 +60,7 @@ def _settings() -> SimpleNamespace:
         auth_cache_ttl_seconds=DEFAULT_AUTH_CACHE_TTL_SECONDS,
         readiness_worker_timeout_seconds=1.0,
         admin_api_key=DEFAULT_ADMIN_API_KEY,
-        alice_api_key=DEFAULT_USER1_API_KEY,
+        alice_api_key=DEFAULT_ALICE_API_KEY,
         bob_api_key="c9169bc2-2980-4155-be29-442ffc44ce64",
         hydra_public_url="http://hydra:4444",
         hydra_issuer="http://hydra:4444/",
@@ -599,7 +599,7 @@ def test_poll_cancel_and_admin_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     forbidden = client.post(
         V1_ADMIN_CREDITS_PATH,
         headers={"Authorization": "Bearer key"},
-        json={"api_key": DEFAULT_USER1_API_KEY, "delta": 1, "reason": "test"},
+        json={"api_key": DEFAULT_ALICE_API_KEY, "delta": 1, "reason": "test"},
     )
     assert forbidden.status_code == 403
     client.close()
@@ -623,7 +623,7 @@ def test_poll_cancel_and_admin_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         V1_ADMIN_CREDITS_PATH,
         headers={"Authorization": f"Bearer {DEFAULT_ADMIN_API_KEY}"},
         json={
-            "api_key": DEFAULT_USER1_API_KEY,
+            "api_key": DEFAULT_ALICE_API_KEY,
             "delta": 10,
             "reason": "manual_topup",
         },
@@ -643,7 +643,7 @@ def test_poll_cancel_and_admin_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     missing_user = admin_client.post(
         V1_ADMIN_CREDITS_PATH,
         headers={"Authorization": f"Bearer {DEFAULT_ADMIN_API_KEY}"},
-        json={"api_key": DEFAULT_USER1_API_KEY, "delta": 10, "reason": "manual_topup"},
+        json={"api_key": DEFAULT_ALICE_API_KEY, "delta": 10, "reason": "manual_topup"},
     )
     assert missing_user.status_code == 404
 
@@ -653,7 +653,7 @@ def test_poll_cancel_and_admin_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     degraded_admin = admin_client.post(
         V1_ADMIN_CREDITS_PATH,
         headers={"Authorization": f"Bearer {DEFAULT_ADMIN_API_KEY}"},
-        json={"api_key": DEFAULT_USER1_API_KEY, "delta": 10, "reason": "manual_topup"},
+        json={"api_key": DEFAULT_ALICE_API_KEY, "delta": 10, "reason": "manual_topup"},
     )
     assert degraded_admin.status_code == 503
     admin_client.close()
@@ -1140,7 +1140,7 @@ def test_oauth_token_exchange_accepts_api_key_alias(
 
     monkeypatch.setattr(app_module, "_validate_oauth_api_key", _valid_api_key, raising=False)
 
-    response = client.post("/v1/oauth/token", json={"api_key": DEFAULT_USER1_API_KEY})
+    response = client.post("/v1/oauth/token", json={"api_key": DEFAULT_ALICE_API_KEY})
     assert response.status_code == 200
     assert called["client_id"] == "solution1-user1"
     assert response.json()["access_token"] == "token-api-key"
@@ -1169,7 +1169,7 @@ def test_oauth_token_exchange_rejects_unknown_api_key_alias(
 
     monkeypatch.setattr(app_module, "_validate_oauth_api_key", _invalid_api_key, raising=False)
 
-    response = client.post("/v1/oauth/token", json={"api_key": DEFAULT_USER1_API_KEY})
+    response = client.post("/v1/oauth/token", json={"api_key": DEFAULT_ALICE_API_KEY})
     assert response.status_code == 401
     assert response.json()["error"]["code"] == "UNAUTHORIZED"
     client.close()
@@ -1202,7 +1202,7 @@ def test_oauth_token_exchange_returns_503_when_api_key_validation_fails(
         raising=False,
     )
 
-    response = client.post("/v1/oauth/token", json={"api_key": DEFAULT_USER1_API_KEY})
+    response = client.post("/v1/oauth/token", json={"api_key": DEFAULT_ALICE_API_KEY})
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "SERVICE_DEGRADED"
     client.close()
@@ -1589,7 +1589,7 @@ def test_admin_route_accepts_jwt_with_admin_role_claim(
     response = client.post(
         V1_ADMIN_CREDITS_PATH,
         headers={"Authorization": "Bearer jwt.header.signature"},
-        json={"api_key": DEFAULT_USER1_API_KEY, "delta": 5, "reason": "manual_topup"},
+        json={"api_key": DEFAULT_ALICE_API_KEY, "delta": 5, "reason": "manual_topup"},
     )
 
     assert response.status_code == 200

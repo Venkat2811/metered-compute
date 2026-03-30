@@ -22,7 +22,7 @@ from solution0.core.defaults import (
     DEFAULT_PENDING_MARKER_TTL_SECONDS,
     DEFAULT_TASK_COST,
     DEFAULT_TASK_RESULT_TTL_SECONDS,
-    DEFAULT_USER1_API_KEY,
+    DEFAULT_ALICE_API_KEY,
 )
 from solution0.models.domain import AuthUser, TaskRecord
 from tests.constants import (
@@ -170,7 +170,7 @@ def test_create_app_submission_failure_branches(monkeypatch: pytest.MonkeyPatch)
     app = app_module.create_app()
 
     user = AuthUser(
-        api_key=DEFAULT_USER1_API_KEY,
+        api_key=DEFAULT_ALICE_API_KEY,
         user_id=TEST_USER_ID,
         name=TEST_USER_NAME,
         role=UserRole.USER,
@@ -257,7 +257,7 @@ def test_create_app_submission_failure_branches(monkeypatch: pytest.MonkeyPatch)
         monkeypatch.setattr(app_module, "run_admission_gate", gate_exception)
         down = client.post(
             V1_TASK_SUBMIT_PATH,
-            headers={"Authorization": f"Bearer {DEFAULT_USER1_API_KEY}"},
+            headers={"Authorization": f"Bearer {DEFAULT_ALICE_API_KEY}"},
             json={"x": 1, "y": 1},
         )
         assert down.status_code == 503
@@ -274,7 +274,7 @@ def test_create_app_submission_failure_branches(monkeypatch: pytest.MonkeyPatch)
         monkeypatch.setattr(app_module, "run_admission_gate", retry_exception)
         retry_down = client.post(
             V1_TASK_SUBMIT_PATH,
-            headers={"Authorization": f"Bearer {DEFAULT_USER1_API_KEY}"},
+            headers={"Authorization": f"Bearer {DEFAULT_ALICE_API_KEY}"},
             json={"x": 2, "y": 2},
         )
         assert retry_down.status_code == 503
@@ -286,7 +286,7 @@ def test_create_app_poll_and_admin_additional_branches(monkeypatch: pytest.Monke
 
     user_id = TEST_USER_ID
     user = AuthUser(
-        api_key=DEFAULT_USER1_API_KEY,
+        api_key=DEFAULT_ALICE_API_KEY,
         user_id=user_id,
         name=TEST_USER_NAME,
         role=UserRole.USER,

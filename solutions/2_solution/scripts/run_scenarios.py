@@ -29,14 +29,14 @@ from solution2.api.paths import (
 from solution2.constants import SubscriptionTier, max_concurrent_for_tier
 from solution2.core.defaults import (
     DEFAULT_ADMIN_API_KEY,
-    DEFAULT_USER1_API_KEY,
-    DEFAULT_USER2_API_KEY,
+    DEFAULT_ALICE_API_KEY,
+    DEFAULT_BOB_API_KEY,
 )
 
 DEFAULT_BASE_URL = "http://localhost:8000"
 DEFAULT_ADMIN_KEY = os.getenv("ADMIN_API_KEY", DEFAULT_ADMIN_API_KEY)
-DEFAULT_USER1_KEY = os.getenv("ALICE_API_KEY", DEFAULT_USER1_API_KEY)
-DEFAULT_USER2_KEY = os.getenv("BOB_API_KEY", DEFAULT_USER2_API_KEY)
+DEFAULT_USER1_KEY = os.getenv("ALICE_API_KEY", DEFAULT_ALICE_API_KEY)
+DEFAULT_USER2_KEY = os.getenv("BOB_API_KEY", DEFAULT_BOB_API_KEY)
 DEFAULT_BASE_MAX_CONCURRENT = int(os.getenv("MAX_CONCURRENT", "3"))
 DEFAULT_USER1_TIER = SubscriptionTier(os.getenv("OAUTH_USER1_TIER", SubscriptionTier.PRO.value))
 DEFAULT_USER2_TIER = SubscriptionTier(os.getenv("OAUTH_USER2_TIER", SubscriptionTier.FREE.value))

@@ -11,10 +11,10 @@ from typing import Any
 import httpx
 
 from solution0.api.paths import COMPAT_TASK_POLL_PATH, COMPAT_TASK_SUBMIT_PATH
-from solution0.core.defaults import DEFAULT_USER1_API_KEY
+from solution0.core.defaults import DEFAULT_ALICE_API_KEY
 
 DEFAULT_BASE_URL = "http://localhost:8000"
-DEFAULT_API_KEY = os.getenv("ALICE_API_KEY", DEFAULT_USER1_API_KEY)
+DEFAULT_API_KEY = os.getenv("ALICE_API_KEY", DEFAULT_ALICE_API_KEY)
 RETRYABLE_ERROR_CODES = {"TOO_MANY_REQUESTS", "SERVICE_DEGRADED"}
 TERMINAL_STATUSES = {"COMPLETED", "FAILED", "CANCELLED", "EXPIRED"}
 

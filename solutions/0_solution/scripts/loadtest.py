@@ -28,8 +28,8 @@ from solution0.api.paths import V1_ADMIN_CREDITS_PATH, V1_TASK_POLL_PATH, V1_TAS
 from solution0.core.defaults import (
     DEFAULT_ADMIN_API_KEY,
     DEFAULT_TASK_COST,
-    DEFAULT_USER1_API_KEY,
-    DEFAULT_USER2_API_KEY,
+    DEFAULT_ALICE_API_KEY,
+    DEFAULT_BOB_API_KEY,
 )
 
 BASE_URL = "http://localhost:8000"
@@ -128,7 +128,7 @@ async def run_loadtest(
     duration: int,
     seed: int,
 ) -> dict[str, Any]:
-    users = [DEFAULT_USER1_API_KEY, DEFAULT_USER2_API_KEY]
+    users = [DEFAULT_ALICE_API_KEY, DEFAULT_BOB_API_KEY]
     total = rps * duration
     credits_needed = (total // len(users) + 1) * DEFAULT_TASK_COST * 2
 

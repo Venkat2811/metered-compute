@@ -33,8 +33,8 @@ from solution1.api.paths import (
 from solution1.core.defaults import (
     DEFAULT_ADMIN_API_KEY,
     DEFAULT_TASK_COST,
-    DEFAULT_USER1_API_KEY,
-    DEFAULT_USER2_API_KEY,
+    DEFAULT_ALICE_API_KEY,
+    DEFAULT_BOB_API_KEY,
 )
 
 BASE_URL = "http://localhost:8000"
@@ -146,7 +146,7 @@ async def run_loadtest(
     duration: int,
     seed: int,
 ) -> dict[str, Any]:
-    api_keys = [DEFAULT_USER1_API_KEY, DEFAULT_USER2_API_KEY]
+    api_keys = [DEFAULT_ALICE_API_KEY, DEFAULT_BOB_API_KEY]
     total = rps * duration
     credits_needed = (total // len(api_keys) + 1) * DEFAULT_TASK_COST * 2
 

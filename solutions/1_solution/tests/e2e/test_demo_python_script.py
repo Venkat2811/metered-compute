@@ -8,10 +8,10 @@ from pathlib import Path
 import httpx
 import pytest
 
-from solution1.core.defaults import DEFAULT_USER1_API_KEY
+from solution1.core.defaults import DEFAULT_ALICE_API_KEY
 
 BASE_URL = os.getenv("E2E_BASE_URL", "http://localhost:8000")
-USER1_KEY = os.getenv("E2E_USER1_API_KEY", os.getenv("ALICE_API_KEY", DEFAULT_USER1_API_KEY))
+USER1_KEY = os.getenv("E2E_USER1_API_KEY", os.getenv("ALICE_API_KEY", DEFAULT_ALICE_API_KEY))
 
 
 @pytest.mark.e2e

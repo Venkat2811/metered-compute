@@ -17,8 +17,8 @@ from solution0.constants import (
 )
 from solution0.core.defaults import (
     DEFAULT_ADMIN_API_KEY,
-    DEFAULT_USER1_API_KEY,
-    DEFAULT_USER2_API_KEY,
+    DEFAULT_ALICE_API_KEY,
+    DEFAULT_BOB_API_KEY,
 )
 from solution0.db.migrate import (
     migration_directory,
@@ -52,8 +52,8 @@ def test_seed_template_renders_assignment_api_keys() -> None:
     rendered = render_migration_sql(sql, migration_template_values())
 
     assert DEFAULT_ADMIN_API_KEY in rendered
-    assert DEFAULT_USER1_API_KEY in rendered
-    assert DEFAULT_USER2_API_KEY in rendered
+    assert DEFAULT_ALICE_API_KEY in rendered
+    assert DEFAULT_BOB_API_KEY in rendered
     assert f"'{SEED_ADMIN_NAME}'" in rendered
     assert f"'{SEED_ALICE_NAME}'" in rendered
     assert f"'{SEED_BOB_NAME}'" in rendered

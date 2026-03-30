@@ -11,13 +11,13 @@ from statistics import mean
 
 import asyncpg
 
-from solution1.core.defaults import DEFAULT_USER1_API_KEY
+from solution1.core.defaults import DEFAULT_ALICE_API_KEY
 from solution1.db.repository import (
     admin_update_user_credits,
     admin_update_user_credits_transactional,
 )
 
-USER1_KEY = os.getenv("ALICE_API_KEY", DEFAULT_USER1_API_KEY)
+USER1_KEY = os.getenv("ALICE_API_KEY", DEFAULT_ALICE_API_KEY)
 
 
 def _percentile(values: list[float], q: float) -> float:

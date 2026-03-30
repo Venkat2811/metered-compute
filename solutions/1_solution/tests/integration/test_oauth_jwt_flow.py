@@ -14,8 +14,8 @@ import pytest
 from solution1.api.paths import V1_AUTH_REVOKE_PATH, V1_OAUTH_TOKEN_PATH
 from solution1.core.defaults import (
     DEFAULT_ADMIN_API_KEY,
-    DEFAULT_USER1_API_KEY,
-    DEFAULT_USER2_API_KEY,
+    DEFAULT_ALICE_API_KEY,
+    DEFAULT_BOB_API_KEY,
 )
 from tests.constants import (
     V1_ADMIN_CREDITS_PATH,
@@ -25,7 +25,7 @@ from tests.constants import (
 
 BASE_URL = os.getenv("INTEGRATION_BASE_URL", "http://localhost:8000")
 USER1_KEY = os.getenv(
-    "INTEGRATION_USER1_API_KEY", os.getenv("ALICE_API_KEY", DEFAULT_USER1_API_KEY)
+    "INTEGRATION_USER1_API_KEY", os.getenv("ALICE_API_KEY", DEFAULT_ALICE_API_KEY)
 )
 ADMIN_KEY = os.getenv(
     "INTEGRATION_ADMIN_API_KEY", os.getenv("ADMIN_API_KEY", DEFAULT_ADMIN_API_KEY)
@@ -251,7 +251,7 @@ def test_jwt_tier_based_concurrency_envelopes(api_client: httpx.Client) -> None:
     # The third seeded user is mapped to solution1-user2/free tier in dev defaults.
     free_user_api_key = os.getenv(
         "INTEGRATION_USER2_API_KEY",
-        os.getenv("BOB_API_KEY", DEFAULT_USER2_API_KEY),
+        os.getenv("BOB_API_KEY", DEFAULT_BOB_API_KEY),
     )
     free_user_token = _get_oauth_token(client=api_client, api_key=free_user_api_key)
 

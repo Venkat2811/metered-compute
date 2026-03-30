@@ -9,10 +9,10 @@ from uuid import uuid4
 import httpx
 import pytest
 
-from solution0.core.defaults import DEFAULT_USER1_API_KEY
+from solution0.core.defaults import DEFAULT_ALICE_API_KEY
 
 BASE_URL = os.getenv("FAULT_BASE_URL", "http://localhost:8000")
-USER1_KEY = os.getenv("FAULT_USER1_API_KEY", os.getenv("ALICE_API_KEY", DEFAULT_USER1_API_KEY))
+USER1_KEY = os.getenv("FAULT_USER1_API_KEY", os.getenv("ALICE_API_KEY", DEFAULT_ALICE_API_KEY))
 
 
 def _compose(project_root: Path, *args: str) -> subprocess.CompletedProcess[str]:

@@ -10,7 +10,7 @@ import pytest
 
 import solution0.workers.reaper as reaper_module
 from solution0.constants import TaskStatus
-from solution0.core.defaults import DEFAULT_USER1_API_KEY
+from solution0.core.defaults import DEFAULT_ALICE_API_KEY
 from solution0.models.domain import TaskRecord
 from tests.constants import (
     TASK_ID_PRIMARY,
@@ -388,7 +388,7 @@ def test_reaper_main_delegates_to_asyncio_run(monkeypatch: pytest.MonkeyPatch) -
 def test_construct_task_record_for_stuck_paths() -> None:
     task = TaskRecord(
         task_id=TASK_ID_PRIMARY,
-        api_key=DEFAULT_USER1_API_KEY,
+        api_key=DEFAULT_ALICE_API_KEY,
         user_id=TEST_USER_ID,
         x=1,
         y=2,

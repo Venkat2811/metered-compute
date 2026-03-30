@@ -22,7 +22,7 @@ from solution0.core.defaults import (
     DEFAULT_PENDING_MARKER_TTL_SECONDS,
     DEFAULT_TASK_COST,
     DEFAULT_TASK_RESULT_TTL_SECONDS,
-    DEFAULT_USER1_API_KEY,
+    DEFAULT_ALICE_API_KEY,
 )
 from solution0.core.dependencies import DependencyHealthService
 from solution0.core.runtime import RuntimeState
@@ -565,7 +565,7 @@ def test_poll_cancel_and_admin_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     forbidden = client.post(
         V1_ADMIN_CREDITS_PATH,
         headers={"Authorization": "Bearer key"},
-        json={"api_key": DEFAULT_USER1_API_KEY, "delta": 1, "reason": "test"},
+        json={"api_key": DEFAULT_ALICE_API_KEY, "delta": 1, "reason": "test"},
     )
     assert forbidden.status_code == 403
     client.close()
@@ -597,7 +597,7 @@ def test_poll_cancel_and_admin_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         V1_ADMIN_CREDITS_PATH,
         headers={"Authorization": f"Bearer {DEFAULT_ADMIN_API_KEY}"},
         json={
-            "api_key": DEFAULT_USER1_API_KEY,
+            "api_key": DEFAULT_ALICE_API_KEY,
             "delta": 10,
             "reason": "manual_topup",
         },
@@ -606,8 +606,8 @@ def test_poll_cancel_and_admin_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     assert updated.json()["new_balance"] == 999
     assert warning_events
     warning_payload = warning_events[0]
-    assert warning_payload["target_api_key_masked"].startswith(DEFAULT_USER1_API_KEY[:4])
-    assert warning_payload["target_api_key_masked"].endswith(DEFAULT_USER1_API_KEY[-4:])
+    assert warning_payload["target_api_key_masked"].startswith(DEFAULT_ALICE_API_KEY[:4])
+    assert warning_payload["target_api_key_masked"].endswith(DEFAULT_ALICE_API_KEY[-4:])
     assert "api_key" not in warning_payload
 
     async def fake_admin_update_user_credits_none(*_: object, **__: object) -> None:
@@ -622,7 +622,7 @@ def test_poll_cancel_and_admin_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     missing_user = admin_client.post(
         V1_ADMIN_CREDITS_PATH,
         headers={"Authorization": f"Bearer {DEFAULT_ADMIN_API_KEY}"},
-        json={"api_key": DEFAULT_USER1_API_KEY, "delta": 10, "reason": "manual_topup"},
+        json={"api_key": DEFAULT_ALICE_API_KEY, "delta": 10, "reason": "manual_topup"},
     )
     assert missing_user.status_code == 404
 
@@ -632,7 +632,7 @@ def test_poll_cancel_and_admin_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     degraded_admin = admin_client.post(
         V1_ADMIN_CREDITS_PATH,
         headers={"Authorization": f"Bearer {DEFAULT_ADMIN_API_KEY}"},
-        json={"api_key": DEFAULT_USER1_API_KEY, "delta": 10, "reason": "manual_topup"},
+        json={"api_key": DEFAULT_ALICE_API_KEY, "delta": 10, "reason": "manual_topup"},
     )
     assert degraded_admin.status_code == 503
     admin_client.close()

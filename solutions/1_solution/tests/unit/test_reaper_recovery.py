@@ -8,7 +8,7 @@ import pytest
 
 import solution1.workers.reaper as reaper_module
 from solution1.constants import TaskStatus
-from solution1.core.defaults import DEFAULT_USER1_API_KEY
+from solution1.core.defaults import DEFAULT_ALICE_API_KEY
 from solution1.models.domain import TaskRecord
 from tests.constants import TASK_ID_PRIMARY, TEST_USER_ID
 
@@ -49,7 +49,7 @@ class _FakePool:
 async def test_process_stuck_tasks_refunds_once(monkeypatch: pytest.MonkeyPatch) -> None:
     task = TaskRecord(
         task_id=TASK_ID_PRIMARY,
-        api_key=DEFAULT_USER1_API_KEY,
+        api_key=DEFAULT_ALICE_API_KEY,
         user_id=TEST_USER_ID,
         x=1,
         y=2,
@@ -118,7 +118,7 @@ async def test_process_stuck_tasks_skips_refund_when_task_not_transitioned(
 ) -> None:
     task = TaskRecord(
         task_id=TASK_ID_PRIMARY,
-        api_key=DEFAULT_USER1_API_KEY,
+        api_key=DEFAULT_ALICE_API_KEY,
         user_id=TEST_USER_ID,
         x=1,
         y=2,
@@ -187,7 +187,7 @@ async def test_process_stuck_tasks_skips_refund_when_credit_audit_fails(
 ) -> None:
     task = TaskRecord(
         task_id=TASK_ID_PRIMARY,
-        api_key=DEFAULT_USER1_API_KEY,
+        api_key=DEFAULT_ALICE_API_KEY,
         user_id=TEST_USER_ID,
         x=1,
         y=2,

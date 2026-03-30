@@ -15,8 +15,8 @@ from solution2.constants import SubscriptionTier, max_concurrent_for_tier
 from solution2.core.defaults import (
     DEFAULT_ADMIN_API_KEY,
     DEFAULT_MAX_CONCURRENT,
-    DEFAULT_USER1_API_KEY,
-    DEFAULT_USER2_API_KEY,
+    DEFAULT_ALICE_API_KEY,
+    DEFAULT_BOB_API_KEY,
 )
 from tests.constants import (
     COMPAT_TASK_POLL_PATH,
@@ -29,10 +29,10 @@ from tests.constants import (
 
 BASE_URL = os.getenv("INTEGRATION_BASE_URL", "http://localhost:8000")
 USER1_KEY = os.getenv(
-    "INTEGRATION_USER1_API_KEY", os.getenv("ALICE_API_KEY", DEFAULT_USER1_API_KEY)
+    "INTEGRATION_USER1_API_KEY", os.getenv("ALICE_API_KEY", DEFAULT_ALICE_API_KEY)
 )
 USER2_KEY = os.getenv(
-    "INTEGRATION_USER2_API_KEY", os.getenv("BOB_API_KEY", DEFAULT_USER2_API_KEY)
+    "INTEGRATION_USER2_API_KEY", os.getenv("BOB_API_KEY", DEFAULT_BOB_API_KEY)
 )
 ADMIN_KEY = os.getenv(
     "INTEGRATION_ADMIN_API_KEY", os.getenv("ADMIN_API_KEY", DEFAULT_ADMIN_API_KEY)

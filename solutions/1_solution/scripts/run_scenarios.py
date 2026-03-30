@@ -29,14 +29,14 @@ from solution1.api.paths import (
 from solution1.constants import SubscriptionTier, max_concurrent_for_tier
 from solution1.core.defaults import (
     DEFAULT_ADMIN_API_KEY,
-    DEFAULT_USER1_API_KEY,
-    DEFAULT_USER2_API_KEY,
+    DEFAULT_ALICE_API_KEY,
+    DEFAULT_BOB_API_KEY,
 )
 
 DEFAULT_BASE_URL = "http://localhost:8000"
 DEFAULT_ADMIN_KEY = os.getenv("ADMIN_API_KEY", DEFAULT_ADMIN_API_KEY)
-DEFAULT_USER1_KEY = os.getenv("ALICE_API_KEY", DEFAULT_USER1_API_KEY)
-DEFAULT_USER2_KEY = os.getenv("BOB_API_KEY", DEFAULT_USER2_API_KEY)
+DEFAULT_USER1_KEY = os.getenv("ALICE_API_KEY", DEFAULT_ALICE_API_KEY)
+DEFAULT_USER2_KEY = os.getenv("BOB_API_KEY", DEFAULT_BOB_API_KEY)
 DEFAULT_USER1_OAUTH_USER_ID = os.getenv(
     "OAUTH_USER1_USER_ID", "47b47338-5355-4edc-860b-846d71a2a75a"
 )

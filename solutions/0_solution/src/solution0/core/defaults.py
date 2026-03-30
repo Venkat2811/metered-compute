@@ -13,8 +13,8 @@ from solution0.core.settings import AppSettings, load_settings
 
 if TYPE_CHECKING:
     DEFAULT_ADMIN_API_KEY: str
-    DEFAULT_USER1_API_KEY: str
-    DEFAULT_USER2_API_KEY: str
+    DEFAULT_ALICE_API_KEY: str
+    DEFAULT_BOB_API_KEY: str
     DEFAULT_TASK_COST: int
     DEFAULT_MAX_CONCURRENT: int
     DEFAULT_AUTH_CACHE_TTL_SECONDS: int
@@ -33,8 +33,8 @@ def _default_values() -> dict[str, str | int]:
     settings = _settings()
     return {
         "DEFAULT_ADMIN_API_KEY": settings.admin_api_key,
-        "DEFAULT_USER1_API_KEY": settings.alice_api_key,
-        "DEFAULT_USER2_API_KEY": settings.bob_api_key,
+        "DEFAULT_ALICE_API_KEY": settings.alice_api_key,
+        "DEFAULT_BOB_API_KEY": settings.bob_api_key,
         "DEFAULT_TASK_COST": settings.task_cost,
         "DEFAULT_MAX_CONCURRENT": settings.max_concurrent,
         "DEFAULT_AUTH_CACHE_TTL_SECONDS": settings.auth_cache_ttl_seconds,
@@ -63,6 +63,6 @@ __all__ = [
     "DEFAULT_PENDING_MARKER_TTL_SECONDS",
     "DEFAULT_TASK_COST",
     "DEFAULT_TASK_RESULT_TTL_SECONDS",
-    "DEFAULT_USER1_API_KEY",
-    "DEFAULT_USER2_API_KEY",
+    "DEFAULT_ALICE_API_KEY",
+    "DEFAULT_BOB_API_KEY",
 ]

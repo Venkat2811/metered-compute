@@ -19,14 +19,14 @@ import httpx
 from solution0.api.paths import V1_ADMIN_CREDITS_PATH, V1_TASK_POLL_PATH, V1_TASK_SUBMIT_PATH
 from solution0.core.defaults import (
     DEFAULT_ADMIN_API_KEY,
-    DEFAULT_USER1_API_KEY,
-    DEFAULT_USER2_API_KEY,
+    DEFAULT_ALICE_API_KEY,
+    DEFAULT_BOB_API_KEY,
 )
 
 BASE_URL = "http://localhost:8000"
 ADMIN_KEY = os.getenv("ADMIN_API_KEY", DEFAULT_ADMIN_API_KEY)
-USER1_KEY = os.getenv("ALICE_API_KEY", DEFAULT_USER1_API_KEY)
-USER2_KEY = os.getenv("BOB_API_KEY", DEFAULT_USER2_API_KEY)
+USER1_KEY = os.getenv("ALICE_API_KEY", DEFAULT_ALICE_API_KEY)
+USER2_KEY = os.getenv("BOB_API_KEY", DEFAULT_BOB_API_KEY)
 
 
 @dataclass(slots=True)

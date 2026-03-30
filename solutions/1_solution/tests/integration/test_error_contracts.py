@@ -10,7 +10,7 @@ from uuid import UUID, uuid4
 import httpx
 import pytest
 
-from solution1.core.defaults import DEFAULT_ADMIN_API_KEY, DEFAULT_USER1_API_KEY
+from solution1.core.defaults import DEFAULT_ADMIN_API_KEY, DEFAULT_ALICE_API_KEY
 from tests.constants import (
     V1_ADMIN_CREDITS_PATH,
     V1_OAUTH_TOKEN_PATH,
@@ -20,7 +20,7 @@ from tests.constants import (
 
 BASE_URL = os.getenv("INTEGRATION_BASE_URL", "http://localhost:8000")
 USER1_KEY = os.getenv(
-    "INTEGRATION_USER1_API_KEY", os.getenv("ALICE_API_KEY", DEFAULT_USER1_API_KEY)
+    "INTEGRATION_USER1_API_KEY", os.getenv("ALICE_API_KEY", DEFAULT_ALICE_API_KEY)
 )
 ADMIN_KEY = os.getenv(
     "INTEGRATION_ADMIN_API_KEY", os.getenv("ADMIN_API_KEY", DEFAULT_ADMIN_API_KEY)
