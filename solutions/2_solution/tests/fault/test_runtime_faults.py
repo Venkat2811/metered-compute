@@ -86,13 +86,19 @@ def test_worker_crash_allows_cancel_path() -> None:
         )
         assert cancel.status_code == 200
 
-        poll = httpx.get(
-            f"{BASE_URL}/v1/poll",
-            timeout=5.0,
-            params={"task_id": task_id},
-            headers={"Authorization": f"Bearer {user_token}"},
-        )
-        assert poll.status_code == 200
+        # Poll with retry — cancel propagation through the projector
+        # may take a moment when the worker is stopped.
+        for _ in range(10):
+            poll = httpx.get(
+                f"{BASE_URL}/v1/poll",
+                timeout=5.0,
+                params={"task_id": task_id},
+                headers={"Authorization": f"Bearer {user_token}"},
+            )
+            assert poll.status_code == 200
+            if poll.json()["status"] == "CANCELLED":
+                break
+            time.sleep(0.5)
         assert poll.json()["status"] == "CANCELLED"
     finally:
         started = _compose(project_root, "start", "worker")
