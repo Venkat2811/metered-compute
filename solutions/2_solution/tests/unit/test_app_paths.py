@@ -22,13 +22,13 @@ from solution2.constants import (
 )
 from solution2.core.defaults import (
     DEFAULT_ADMIN_API_KEY,
+    DEFAULT_ALICE_API_KEY,
     DEFAULT_AUTH_CACHE_TTL_SECONDS,
     DEFAULT_IDEMPOTENCY_TTL_SECONDS,
     DEFAULT_MAX_CONCURRENT,
     DEFAULT_PENDING_MARKER_TTL_SECONDS,
     DEFAULT_TASK_COST,
     DEFAULT_TASK_RESULT_TTL_SECONDS,
-    DEFAULT_ALICE_API_KEY,
 )
 from solution2.core.dependencies import DependencyHealthService
 from solution2.core.runtime import RuntimeState

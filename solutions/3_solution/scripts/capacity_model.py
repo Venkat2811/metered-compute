@@ -64,11 +64,7 @@ def _build_profile_rows(
                 "throughput_rps_sustained": round(sustained_rps, 4),
                 "monthly_tasks": round(monthly_tasks, 2),
                 "monthly_polls": round(monthly_polls, 2),
-                "p95_ms": (
-                    float(latency.get("p95", 0.0))
-                    if isinstance(latency, dict)
-                    else 0.0
-                ),
+                "p95_ms": (float(latency.get("p95", 0.0)) if isinstance(latency, dict) else 0.0),
             }
         )
     return rows
@@ -108,7 +104,7 @@ def main() -> int:
         f"- Utilization factor: `{args.utilization}`",
         f"- Polls per task: `{args.polls_per_task}`",
         "",
-        "| Profile | Raw rps | Sustained rps | Monthly tasks | Monthly polls | p95 submit latency (ms) |",
+        "| Profile | Raw rps | Sustained rps | Monthly tasks | Monthly polls | p95 (ms) |",
         "|---|---:|---:|---:|---:|---:|",
     ]
     for row in rows:

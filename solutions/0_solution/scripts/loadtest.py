@@ -27,9 +27,9 @@ import httpx
 from solution0.api.paths import V1_ADMIN_CREDITS_PATH, V1_TASK_POLL_PATH, V1_TASK_SUBMIT_PATH
 from solution0.core.defaults import (
     DEFAULT_ADMIN_API_KEY,
-    DEFAULT_TASK_COST,
     DEFAULT_ALICE_API_KEY,
     DEFAULT_BOB_API_KEY,
+    DEFAULT_TASK_COST,
 )
 
 BASE_URL = "http://localhost:8000"

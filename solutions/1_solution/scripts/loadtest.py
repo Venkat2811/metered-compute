@@ -32,9 +32,9 @@ from solution1.api.paths import (
 )
 from solution1.core.defaults import (
     DEFAULT_ADMIN_API_KEY,
-    DEFAULT_TASK_COST,
     DEFAULT_ALICE_API_KEY,
     DEFAULT_BOB_API_KEY,
+    DEFAULT_TASK_COST,
 )
 
 BASE_URL = "http://localhost:8000"

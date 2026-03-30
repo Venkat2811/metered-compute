@@ -15,13 +15,13 @@ from fastapi.testclient import TestClient
 from solution1.constants import SubscriptionTier, TaskStatus, UserRole
 from solution1.core.defaults import (
     DEFAULT_ADMIN_API_KEY,
+    DEFAULT_ALICE_API_KEY,
     DEFAULT_AUTH_CACHE_TTL_SECONDS,
     DEFAULT_IDEMPOTENCY_TTL_SECONDS,
     DEFAULT_MAX_CONCURRENT,
     DEFAULT_PENDING_MARKER_TTL_SECONDS,
     DEFAULT_TASK_COST,
     DEFAULT_TASK_RESULT_TTL_SECONDS,
-    DEFAULT_ALICE_API_KEY,
 )
 from solution1.core.dependencies import DependencyHealthService
 from solution1.core.runtime import RuntimeState
