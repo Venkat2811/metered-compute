@@ -209,7 +209,7 @@ __marimo__/
 **.DS_Store**
 __temp__/
 
-# metered-compute spec generated verification artifacts
+# Generated verification artifacts
 # Keep only templates/policy files in worklog artifacts:
 # - baselines: TEMPLATE.md, gates.*.yaml
 # - evidence: README.md, .gitkeep

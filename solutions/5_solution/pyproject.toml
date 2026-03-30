@@ -3,7 +3,7 @@ requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mc-solution4"
+name = "mc-solution5"
 version = "0.1.0"
 description = "Solution 5 TigerBeetle + Restate showcase for metered-compute API"
 readme = "README.md"

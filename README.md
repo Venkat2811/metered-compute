@@ -1,80 +1,61 @@
-#  Assignment Repository
+# metered-compute
 
-This repository contains:
-- the original assignment input,
-- a shared assumptions + RFC set,
-- multiple solution tracks with different architectural tradeoffs.
+Reference architectures for authenticated, credit-metered async compute — inference, tool execution, and RL task APIs.
 
-Start here:
-1. `solutions/README.md` (solution matrix and how tracks differ)
-2. `solutions/0_0_problem_statement_and_assumptions/README.md` (baseline contract and assumptions)
-3. `.0_agentic_engineering/0_rfcs/` (deep architecture docs per track)
+Five progressive implementations from Celery baseline to TigerBeetle + Restate.
 
-## Directory Layout (Lay of the Land)
+## Solutions
 
-Excluded from this map by design: `_wip/`, `.claude/`, `__temp__/`.
+| Track | Thesis | Stack | When to use |
+|-------|--------|-------|-------------|
+| [Sol 0](solutions/0_solution/) | Pragmatic baseline | Celery + Redis + Postgres | Quick prototype, familiar stack |
+| [Sol 1](solutions/1_solution/) | Redis-native engine | JWT + Redis Streams + Lua | Low-latency, stream-native billing |
+| [Sol 2](solutions/2_solution/) | Service-grade platform | CQRS + RabbitMQ + reservations | Enterprise messaging, audit trail |
+| [Sol 3](solutions/3_solution/) | Financial core | TigerBeetle + Redpanda + CQRS | Jepsen-verified billing, event sourcing |
+| [Sol 5](solutions/5_solution/) | TB + Restate showcase | TigerBeetle + Restate | Minimal code, durable execution |
+
+## Quick Start
+
+Pick a solution and run:
+
+```bash
+cd solutions/1_solution      # or any solution
+uv venv --python 3.12 .venv && source .venv/bin/activate
+uv pip install -e ".[dev]"
+docker compose up --build -d
+bash scripts/demo.sh
+```
+
+## Directory Layout
 
 ```text
 metered-compute/
-|-- .git/                                  # git metadata
-|-- .ruff_cache/                           # local lint cache
-|-- LICENSE
-|-- README.md                              # this file
-|-- original-task/
-|   `-- api_playground-master/
-|       `-- README.md                      # canonical assignment prompt/input
-`-- solutions/
-    |-- README.md                          # solution matrix + run guidance
-    |-- 0_0_problem_statement_and_assumptions/
-    |   `-- README.md                      # shared baseline contract + assumptions
-    |-- 0_1_rfcs/
-    |   |-- RFC-0000-0-solution-celery-baseline/
-    |   |   `-- README.md                  # Sol 0 architecture
-    |   |-- RFC-0001-1-solution-redis-native-engine/
-    |   |   `-- README.md                  # Sol 1 architecture
-    |   |-- RFC-0002-2-solution-service-grade-platform/
-    |   |   `-- README.md                  # Sol 2 architecture
-    |   |-- RFC-0003-3-solution-financial-core/
-    |   |   `-- README.md                  # Sol 3 architecture
-    |   |-- RFC-0004-4-solution-production-launch/
-    |   |   `-- README.md                  # Sol 4 (RFC only)
-    |   `-- RFC-0005-5-solution-tb-restate-showcase/
-    |       `-- README.md                  # Sol 5 architecture
-    |-- 0_solution/
-    |   `-- README.md                      # implemented: Celery + Redis + Postgres
-    |-- 1_solution/
-    |   `-- README.md                      # implemented: JWT + Redis Streams + Lua
-    |-- 2_solution/
-    |   `-- README.md                      # implemented: CQRS + RabbitMQ + reservations
-    |-- 3_solution/
-    |   `-- README.md                      # implemented: TigerBeetle + Redpanda + CQRS
-    |-- 4_solution/
-    |   `-- README.md                      # track stub (RFC-only launch blueprint)
-    `-- 5_solution/
-        `-- README.md                      # implemented: TigerBeetle + Restate showcase
+|-- .0_agentic_engineering/
+|   |-- 0_rfcs/                          # architecture RFCs per solution
+|   `-- 1_worklog/0_Venkat2811/kanban/   # consolidated kanban board
+|-- solutions/
+|   |-- README.md                        # solution matrix and guidance
+|   |-- 0_solution/                      # Celery baseline
+|   |-- 1_solution/                      # Redis Streams native
+|   |-- 2_solution/                      # CQRS + RabbitMQ
+|   |-- 3_solution/                      # TigerBeetle + Redpanda
+|   `-- 5_solution/                      # TigerBeetle + Restate
+`-- LICENSE
 ```
 
-## Read Order (Recommended)
+## Read Order
 
-1. `original-task/api_playground-master/README.md`
-2. `solutions/0_0_problem_statement_and_assumptions/README.md`
-3. `solutions/README.md`
-4. RFC folder matching the track you are reviewing (`.0_agentic_engineering/0_rfcs/...`)
-5. Corresponding implementation README (`solutions/<n>_solution/README.md`)
+1. `solutions/README.md` (solution matrix)
+2. `.0_agentic_engineering/0_rfcs/` (architecture docs per track)
+3. Corresponding `solutions/<n>_solution/README.md`
 
-## Note from Venkat
+## Development
 
-Development was done using Agentic Engineering - claude-code for planning, codex-cli for implementation, cursor as overall IDE
+Built using agentic engineering — Claude Code for planning, Codex CLI for implementation, Cursor as IDE.
 
-Time Spent: ~40 hours
-- Opened assignment dir on Saturday
-- Active and Passive planning ~6 hours
-- Basic repo structure and initial rfc ~2hrs
-- 0_solution ~10 hours
-- 1_solution ~10 hours
-- 2_solution ~8 hours
-- 3_solution ~1 hour
-- 4_solution ~1 hour
-- 5_solution ~4 hours (in parallel with 2_solution)
-
-All runnable solutions were verified on Macbook Pro
+Each solution has:
+- `make quality` — ruff, mypy, bandit, pip-audit, detect-secrets, radon
+- `make coverage` — pytest with module-level coverage floors
+- `make prove` — full quality + coverage + compose rebuild + integration + fault + scenarios
+- `docker compose up --build -d` — complete stack
+- `bash scripts/demo.sh` — end-to-end walkthrough

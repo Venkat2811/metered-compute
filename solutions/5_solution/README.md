@@ -4,7 +4,7 @@ Compact implementation (~1.8k Python LOC) demonstrating that **TigerBeetle** (do
 **Restate** (durable execution) replace thousands of lines of application infrastructure while
 providing stronger correctness guarantees.
 
-Compose project name: `mc-solution4` (set in `compose.yaml`).
+Compose project name: `mc-solution5` (set in `compose.yaml`).
 
 Primary RFC:
 

@@ -68,7 +68,7 @@ async def _store_cache(task_id: str, result: dict[str, int]) -> None:
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="Solution 4 Compute Worker")
+    app = FastAPI(title="Solution 5 Compute Worker")
 
     @app.get("/health")
     async def health() -> dict[str, str]:

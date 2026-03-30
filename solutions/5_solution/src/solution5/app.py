@@ -313,7 +313,7 @@ def create_app() -> FastAPI:
         await pg_pool.close()
         await redis_conn.aclose()
 
-    app = FastAPI(title="Solution 4 — TB + Restate", lifespan=lifespan)
+    app = FastAPI(title="Solution 5 — TB + Restate", lifespan=lifespan)
 
     def _endpoint_label(request: Request) -> str:
         route = request.scope.get("route")

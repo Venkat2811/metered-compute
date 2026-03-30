@@ -14,7 +14,7 @@ bob_credits="${RESET_BOB_CREDITS:-500}"
 docker compose exec -T redis redis-cli FLUSHALL >/dev/null
 
 # ── Reset Postgres tasks ──
-docker compose exec -T postgres psql -U postgres -d bfl >/dev/null <<SQL
+docker compose exec -T postgres psql -U postgres -d mc >/dev/null <<SQL
 TRUNCATE TABLE tasks;
 UPDATE users SET credits = CASE user_id
     WHEN '${alice_id}'::uuid THEN ${alice_credits}
