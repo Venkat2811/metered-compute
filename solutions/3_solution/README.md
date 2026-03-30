@@ -94,7 +94,7 @@ What is already real:
 
 Known limitation:
 
-- Sol3 keeps CQRS + broker fan-out architecture. Under an exceptional path, a worker can post a TigerBeetle capture while the database finalization fails before result persistence, which can leave a task status transition complete while `result` is absent. This is the intended Sol3 trade-off versus Sol5's journaled execution model.
+- Sol3 keeps CQRS + broker fan-out architecture. Under an exceptional path, a worker can post a TigerBeetle capture while the database finalization fails before result persistence, which can leave a task status transition complete while `result` is absent. This is the intended Sol3 trade-off versus Sol4's journaled execution model.
 
 What is not implemented yet:
 

@@ -33,7 +33,7 @@ Every infrastructure component earns its place by doing something the others can
 | Redpanda    | Durable event log with safe consumer lag | RabbitMQ degrades under consumer lag (projector down = message accumulation = memory pressure). Redpanda is designed for consumers to lag, crash, and catch up. Also enables independent consumer reset and analytics feed. |
 | RabbitMQ    | Worker dispatch routing                  | Redpanda can't do broker-side "try warm first, fall back to cold." Log consumption is round-robin.                                                                                                                          |
 | PostgreSQL  | Metadata + CQRS projections              | TB stores balances, not task metadata. Redpanda stores events, not queryable state.                                                                                                                                         |
-| Redis       | Hot-path cache + active counters         | PG for every auth/balance lookup = the "too many DB calls" problem the design problem.                                                                                                                         |
+| Redis       | Hot-path cache + active counters         | PG for every auth/balance lookup = the "too many DB calls" problem.                                                                                                                         |
 
 What this solution does NOT include:
 

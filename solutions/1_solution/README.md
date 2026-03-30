@@ -1,6 +1,6 @@
 # 1_solution: Redis-Native Engine
 
-Production implementation for the Pragmatic production baseline for metered async compute APIs using `JWT + Redis Streams + Lua atomic admission`.
+Production Redis-native engine for metered async compute using `JWT + Redis Streams + Lua atomic admission`.
 
 Compose project name: `mc-solution1` (set in `compose.yaml`).
 

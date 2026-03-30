@@ -1,4 +1,4 @@
--- Solution 5: Minimal schema — billing state lives in TigerBeetle
+-- Solution 4: Minimal schema — billing state lives in TigerBeetle
 -- Only 3 tables: users, api_keys, tasks
 
 BEGIN;

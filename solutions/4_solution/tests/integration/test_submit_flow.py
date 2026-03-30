@@ -94,7 +94,7 @@ class TestSubmitFlow:
         payload = {
             "user_id": "a0000000-0000-0000-0000-000000000001",
             "amount": 37,
-            "idempotency_key": f"sol5-topup-{uuid4()}",
+            "idempotency_key": f"sol4-topup-{uuid4()}",
         }
 
         first = client.post("/v1/admin/credits", json=payload)
@@ -133,7 +133,7 @@ class TestSubmitFlow:
         assert r.status_code in {404, 405}
 
     def test_random_idempotent_payload_extra_headers_are_ignored_if_unrecognized(self, client: httpx.Client) -> None:
-        key = f"sol5-scope-{uuid4()}"
+        key = f"sol4-scope-{uuid4()}"
         r = client.post(
             "/v1/task",
             headers={"X-Idempotency-Key": key, "X-Debug-Trace": "ignore-me"},

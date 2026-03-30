@@ -1,6 +1,6 @@
 # 0_solution: Celery Baseline
 
-Pragmatic production baseline for the Pragmatic production baseline for metered async compute APIs.
+Pragmatic production baseline for metered async compute APIs.
 
 Compose project name: `mc-solution0` (set in `compose.yaml`).
 
@@ -173,7 +173,7 @@ Repository shape:
 .
 |-- worklog
 |   |-- baselines
-|   |-- kanban
+|   |-- 
 |   `-- research
 |-- docker
 |   |-- api

@@ -89,7 +89,7 @@ Document production packaging path beyond single-node compose: Postgres replicat
 
 ## Exit Criteria
 
-- [x] HA plan is concrete and implementation-ready for post-assignment evolution
+- [x] HA plan is concrete and implementation-ready for post-release evolution
 
 ## Evidence
 
@@ -1013,12 +1013,12 @@ Depends on: P0-001
 
 ## Objective
 
-Implement the baseline data model from RFC with forward-only migrations, indexes, and assignment-faithful seed users.
+Implement the baseline data model from RFC with forward-only migrations, indexes, and seed users.
 
 ## Checklist
 
 - [x] Add migration set for:
-  - [x] assignment `users` schema (`name`, `api_key`, `credits`)
+  - [x] `users` schema (`name`, `api_key`, `credits`)
   - [x] `tasks`
   - [x] `credit_transactions`
   - [x] `credit_snapshots`
@@ -1027,7 +1027,7 @@ Implement the baseline data model from RFC with forward-only migrations, indexes
   - [x] task status/time index
   - [x] task user/time index
   - [x] credit transaction user/time index
-- [x] Add deterministic seed fixture with assignment API keys
+- [x] Add deterministic seed fixture with API keys
 - [x] Add migration runner for local and test harness
 
 ## TDD Subtasks
@@ -1035,7 +1035,7 @@ Implement the baseline data model from RFC with forward-only migrations, indexes
 1. Red
 
 - [x] Add failing migration tests (empty DB -> target schema)
-- [x] Add failing seed verification test for exact assignment records
+- [x] Add failing seed verification test for exact records
 
 2. Green
 
@@ -1048,7 +1048,7 @@ Implement the baseline data model from RFC with forward-only migrations, indexes
 ## Acceptance Criteria
 
 - [x] Fresh Postgres initializes to expected schema
-- [x] Seed users match assignment keys and balances
+- [x] Seed users match keys and balances
 - [x] Query plans hit expected indexes for poll/history patterns
 
 ## Progress Notes (2026-02-15)
@@ -2013,7 +2013,7 @@ Keep scope to risk identification, monitoring, and low-risk guardrails that redu
 
 ## Notes
 
-- RFC section updated: `0_1_rfcs/RFC-0001-1-solution-redis-native-engine/data-ownership.md`
+- RFC section updated: `.0_agentic_engineering/0_rfcs/RFC-0001-1-solution-redis-native-engine/data-ownership.md`
 - Runbook section added for BK-008 monitoring and trigger thresholds: `worklog/RUNBOOK.md`
 
 ### S1-BK-009-jwt-boundary-hardening-and-principal-resolution
@@ -2085,7 +2085,7 @@ Track optional per-user request rate limiting as a feature-scope extension.
   - token/idempotency-aware accounting windows,
   - additional metrics/event semantics,
   - and broader contract/API docs changes.
-- Given assignment scope and risk, we defer the feature and keep behavior unchanged.
+- Given scope and risk, we defer the feature and keep behavior unchanged.
 
 ## Scope boundary update
 
@@ -2095,7 +2095,7 @@ Track optional per-user request rate limiting as a feature-scope extension.
 ## Checklist
 
 - [x] Evaluate whether a rate limiter is justified against current concurrency/error semantics
-- [x] Document rationale against assignment and RFC behavior
+- [x] Document rationale against spec and RFC behavior
 - [x] Decide implementation vs deferral and record outcome
 - [ ] Implement production-safe limiter (not justified in current scope)
 
@@ -2624,7 +2624,7 @@ Ship public API contracts for submit/poll/cancel/admin with strict schemas, auth
 - [x] Implement endpoints: `POST /v1/task`, `GET /v1/poll`, `POST /v1/task/{id}/cancel`, `POST /v1/admin/credits`
 - [x] Enforce ownership checks and idempotency-key semantics
 - [x] Implement queue position and estimated runtime response fields for pending tasks
-- [x] Add compatibility aliases if required by assignment wording
+- [x] Add compatibility aliases if required by spec wording
 - [x] Define structured business events for lifecycle + billing actions
 
 ## Acceptance Criteria
@@ -2637,7 +2637,7 @@ Ship public API contracts for submit/poll/cancel/admin with strict schemas, auth
 
 Implemented:
 
-- Kept API contract surface stable across submit/poll/cancel/admin plus assignment compatibility aliases.
+- Kept API contract surface stable across submit/poll/cancel/admin plus compatibility aliases.
 - Added Redis task-state key helper (`task:{task_id}`) and poll-path lookup before Postgres fallback.
 - Poll now serves pending/running status directly from Redis task hash on happy path.
 - Queue position and ETA now use Redis stream depth (`XLEN`) instead of Celery list depth.
@@ -3071,7 +3071,7 @@ Align implemented behavior with agreed solution-1 contract where mismatches were
 
 - [x] Add `estimated_seconds` to submit response model and route response payload
 - [x] Resolve and align LARGE model cost factor with shared assumptions/RFC, then enforce in code + tests
-- [x] Add explicit 10-second worker model initialization warmup behavior required by assignment baseline
+- [x] Add explicit 10-second worker model initialization warmup behavior required by spec baseline
 - [x] Add poll terminal edge fallback for partial Redis cache presence (`task:{id}` present, `result:{id}` missing)
 - [x] Add idempotency key boundary guard (`<= 128`) with deterministic error behavior
 - [x] Add/adjust integration tests for submit contract fields and model/tier behavior
@@ -3080,7 +3080,7 @@ Align implemented behavior with agreed solution-1 contract where mismatches were
 
 - [x] Submit response contract matches documented API behavior
 - [x] Model/tier math is consistent across code, tests, and docs
-- [x] Worker startup behavior matches assignment simulation expectations
+- [x] Worker startup behavior matches simulation expectations
 
 ## Notes
 
@@ -3246,7 +3246,7 @@ Resolve only validated, high-signal review findings in one focused pass across s
 - [x] Align `1_solution/README.md` DB-call math and related request-flow wording
 - [x] Align `RFC-0001` Lua pseudo-code/args/field names with shipped implementation
 - [x] Align `solutions/README.md` container/service naming with compose reality
-- [x] Clarify tier-concurrency wording in `0_0_problem_statement_and_assumptions/README.md` vs multiplier model
+- [x] Clarify tier-concurrency wording in `the spec baseline` vs multiplier model
 - [x] Remove or deprecate stale flat RFC file `RFC-0001-1-solution-redis-native-engine.md`
 - [x] Run `make prove` from clean state and record evidence path
 
@@ -5236,7 +5236,7 @@ Acceptance criteria:
 - [x] Prometheus scrapes both `api` and `compute`.
 - [x] Grafana provisioning and a real Solution 4 dashboard are checked in.
 - [x] Solution 4 README reflects external compute, 13 scenarios, and honest container counts.
-- [x] RFC-0005 reflects external compute instead of inline compute for the shipped implementation.
+- [x] RFC-0004 reflects external compute instead of inline compute for the shipped implementation.
 - [x] Root `solutions/README.md` entries for Solution 4 match the shipped surface.
 - [x] `make prove` passes from a clean state after the alignment slice.
 

@@ -8,7 +8,7 @@
 
 ## Context and scope
 
-Solutions 0-3 are full implementations (800-3000+ LOC of application Python, depending on track). Solution 4 is an RFC-only launch blueprint. Solution 4 takes a different approach: a compact standalone implementation (~1.8k lines of Python) that demonstrates how TigerBeetle (Jepsen-verified double-entry accounting) and Restate (durable execution framework) can replace thousands of lines of infrastructure code while providing stronger correctness guarantees.
+Solutions 0-3 are full implementations (800-3000+ LOC of application Python, depending on track). Solution 4 takes a different approach: a compact standalone implementation (~1.8k lines of Python) that demonstrates how TigerBeetle (Jepsen-verified double-entry accounting) and Restate (durable execution framework) can replace thousands of lines of infrastructure code while providing stronger correctness guarantees.
 
 This is not a production evolution of Solutions 0-2. It is a focused showcase proving that the right infrastructure choices can eliminate entire categories of application-level complexity.
 
