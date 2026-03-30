@@ -8,7 +8,7 @@ Compose project name: `mc-solution4` (set in `compose.yaml`).
 
 Primary RFC:
 
-- `../0_1_rfcs/RFC-0005-5-solution-tb-restate-showcase/README.md`
+- `../../.0_agentic_engineering/0_rfcs/RFC-0005-5-solution-tb-restate-showcase/README.md`
 
 ## Setup, Run, Demo (Reviewer First)
 

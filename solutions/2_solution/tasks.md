@@ -1,7 +1,7 @@
 # Solution 2: TDD Task List
 
 > **Base**: Fork from `1_solution` (which forked from `0_solution`)
-> **RFC**: `0_1_rfcs/RFC-0002-2-solution-service-grade-platform/`
+> **RFC**: `.0_agentic_engineering/0_rfcs/RFC-0002-2-solution-service-grade-platform/`
 > **Pattern**: Copy Sol 1, remove unnecessary (Lua admission, Redis Streams, pending markers), add new (RabbitMQ, outbox/inbox, reservation billing, CQRS, projector, watchdog)
 
 ## Key architectural shifts from Sol 1

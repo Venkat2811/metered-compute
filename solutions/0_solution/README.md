@@ -6,7 +6,7 @@ Compose project name: `mc-solution0` (set in `compose.yaml`).
 
 Primary RFC:
 
-- `../0_1_rfcs/RFC-0000-0-solution-celery-baseline/README.md`
+- `../../.0_agentic_engineering/0_rfcs/RFC-0000-0-solution-celery-baseline/README.md`
 
 ## Setup, Run, Demo (Reviewer First)
 

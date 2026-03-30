@@ -8,7 +8,7 @@ This repository contains:
 Start here:
 1. `solutions/README.md` (solution matrix and how tracks differ)
 2. `solutions/0_0_problem_statement_and_assumptions/README.md` (baseline contract and assumptions)
-3. `solutions/0_1_rfcs/` (deep architecture docs per track)
+3. `.0_agentic_engineering/0_rfcs/` (deep architecture docs per track)
 
 ## Directory Layout (Lay of the Land)
 
@@ -59,7 +59,7 @@ metered-compute/
 1. `original-task/api_playground-master/README.md`
 2. `solutions/0_0_problem_statement_and_assumptions/README.md`
 3. `solutions/README.md`
-4. RFC folder matching the track you are reviewing (`solutions/0_1_rfcs/...`)
+4. RFC folder matching the track you are reviewing (`.0_agentic_engineering/0_rfcs/...`)
 5. Corresponding implementation README (`solutions/<n>_solution/README.md`)
 
 ## Note from Venkat

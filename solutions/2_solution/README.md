@@ -6,7 +6,7 @@ Compose project name: `mc-solution2` (set in `compose.yaml`).
 
 Primary references:
 
-- `../0_1_rfcs/RFC-0002-2-solution-service-grade-platform/`
+- `../../.0_agentic_engineering/0_rfcs/RFC-0002-2-solution-service-grade-platform/`
 - `worklog/kanban/BOARD.md`
 
 ## Setup, Run, Demo (Reviewer First)

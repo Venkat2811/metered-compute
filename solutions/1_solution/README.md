@@ -6,7 +6,7 @@ Compose project name: `mc-solution1` (set in `compose.yaml`).
 
 Primary references:
 
-- `../0_1_rfcs/RFC-0001-1-solution-redis-native-engine/README.md`
+- `../../.0_agentic_engineering/0_rfcs/RFC-0001-1-solution-redis-native-engine/README.md`
 - `../README.md`
 - `../../../original-task/api_playground-master/README.md`
 

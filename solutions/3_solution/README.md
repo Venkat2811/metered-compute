@@ -6,7 +6,7 @@ Compose project name: `mc-solution3` (set in `compose.yaml`).
 
 Primary RFC:
 
-- `../0_1_rfcs/RFC-0003-3-solution-financial-core/README.md`
+- `../../.0_agentic_engineering/0_rfcs/RFC-0003-3-solution-financial-core/README.md`
 
 ## Setup, Run, Demo (Reviewer First)
 

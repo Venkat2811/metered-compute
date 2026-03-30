@@ -28,7 +28,7 @@ Solutions 0 and 5 use API key auth. Solutions 1-4 use JWT/OAuth.
 ## Shared documents
 
 - `0_0_problem_statement_and_assumptions/README.md` - requirements and baseline
-- `0_1_rfcs/` - one RFC per solution
+- `../.0_agentic_engineering/0_rfcs/` - one RFC per solution
 
 ## Observability by solution
 
