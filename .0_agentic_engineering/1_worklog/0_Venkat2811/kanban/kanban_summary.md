@@ -31,7 +31,7 @@ P0/P1/P2: Workers, projector, fixes, batch (P0-010 through P2-025)
 P0: Full build-out (P0-001 through P0-006)
 P1/P2: Hardening (P1-007 through P2-009, P1-010)
 
-## Solution 5 (TB + Restate): 6 done, 0 closed
+## Solution 4 (TB + Restate): 6 done, 0 closed
 P0/P1: Build + hardening (P0-001 through P1-005, P0-006)
 
 ## Current Queue

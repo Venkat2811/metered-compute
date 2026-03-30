@@ -1,0 +1,13 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: "solution4-api"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["api:8000"]
+
+  - job_name: "solution4-compute"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["compute:8001"]

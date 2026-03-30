@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: solution4
+    orgId: 1
+    folder: Solution4
+    type: file
+    disableDeletion: true
+    updateIntervalSeconds: 10
+    options:
+      path: /var/lib/grafana/dashboards

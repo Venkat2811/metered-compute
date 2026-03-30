@@ -4947,7 +4947,7 @@ Verification notes:
 
 Objective:
 
-Resolve the remaining high-risk integrity gaps in Sol3 while preserving the Sol3 architecture (TB + Redpanda + RabbitMQ + CQRS). Do not collapse Sol3 into Sol5.
+Resolve the remaining high-risk integrity gaps in Sol3 while preserving the Sol3 architecture (TB + Redpanda + RabbitMQ + CQRS). Do not collapse Sol3 into Sol4.
 
 Acceptance criteria:
 
@@ -4997,7 +4997,7 @@ Checklist:
 - [x] `README.md` + `RFC-0003` (or solution-local RFC notes)
 - [x] Update “known limitation” section:
     - [x] TB capture before DB finalize can still lead to completed-without-result on exceptional requeue/ack edge
-    - [x] document that this is architectural tradeoff vs Sol5
+    - [x] document that this is architectural tradeoff vs Sol4
   - [x] Update any claims around watchdog/reconciler and admin audit semantics.
 
 Completion criteria:
@@ -5063,18 +5063,18 @@ TDD order:
 4. Implement deterministic transfer-id resolution in admin route.
 5. Re-run unit + targeted integration + proof.
 
-## Solution 5
+## Solution 4
 
-### S5-P0-001-solution5-hardening-auth-readiness
-- Solution: Sol5
+### S5-P0-001-solution4-hardening-auth-readiness
+- Solution: Sol4
 
-# P0-001 Solution 5 - Security, Authz, and Readiness Hardening
+# P0-001 Solution 4 - Security, Authz, and Readiness Hardening
 
 Status: DONE (with deterministic handoff compensation)
 
 Objective:
 
-Close correctness and authorization gaps in the current Sol 5 showcase without changing the TB + Restate thesis.
+Close correctness and authorization gaps in the current Sol 4 showcase without changing the TB + Restate thesis.
 
 Acceptance criteria:
 
@@ -5113,10 +5113,10 @@ Completion criteria:
 - [ ] Security and readiness tests pass at API boundary.
 - [ ] No state transition can occur without explicit guard.
 
-### S5-P0-002-solution5-restate-external-compute
-- Solution: Sol5
+### S5-P0-002-solution4-restate-external-compute
+- Solution: Sol4
 
-# P0-002 Solution 5 - Restate-Control Plane + External Compute Separation
+# P0-002 Solution 4 - Restate-Control Plane + External Compute Separation
 
 Status: DONE
 
@@ -5139,12 +5139,12 @@ TDD order:
 Checklist:
 
 - [x] Create/extend compute gateway module:
-  - `src/solution5/workers/compute_gateway.py` (or `services/compute.py`).
+  - `src/solution4/workers/compute_gateway.py` (or `services/compute.py`).
   - push request payload with task_id, user_id, model metadata.
 - [x] Add lightweight compute worker process:
-  - `src/solution5/workers/compute_worker.py`.
+  - `src/solution4/workers/compute_worker.py`.
   - return result via Redis queue or Restate ingress endpoint.
-- [x] Update Restate workflow in `src/solution5/workflows.py`:
+- [x] Update Restate workflow in `src/solution4/workflows.py`:
   - set `PENDING`/`RUNNING` transitions before dispatch.
   - await result with timeout handling (heartbeat updates remain deferred).
   - handle cancel signal and map to safe TB void/cancel path.
@@ -5157,14 +5157,14 @@ Completion criteria:
 - [x] Inline `x+y` no longer executes in the workflow directly.
 - [x] External worker faults are surfaced as deterministic workflow outcomes.
 
-### S5-P0-003-solution5-service-surface-proof
-- Solution: Sol5
+### S5-P0-003-solution4-service-surface-proof
+- Solution: Sol4
 
-# P0-003 Solution 5 — Service Surface and Proof Posture (DONE)
+# P0-003 Solution 4 — Service Surface and Proof Posture (DONE)
 
 Objective:
 
-Set Sol 5 service surface as narrow and explicit for this architecture (API-key auth only), with matching validation, tests, and docs.
+Set Sol 4 service surface as narrow and explicit for this architecture (API-key auth only), with matching validation, tests, and docs.
 
 Acceptance criteria:
 
@@ -5194,14 +5194,14 @@ Checklist:
   - `make scenarios` updated to 13 scenarios,
   - scenario report includes scope gate checks.
 
-### S5-P0-006-solution5-cancel-topup-and-poll-integrity
-- Solution: Sol5
+### S5-P0-006-solution4-cancel-topup-and-poll-integrity
+- Solution: Sol4
 
-# P0-006 Solution 5 - cancel, top-up, and poll integrity
+# P0-006 Solution 4 - cancel, top-up, and poll integrity
 
 Objective:
 
-Close the remaining Solution 5 correctness gaps around late cancellation, JSON result fidelity, and admin credit idempotency before calling the solution complete.
+Close the remaining Solution 4 correctness gaps around late cancellation, JSON result fidelity, and admin credit idempotency before calling the solution complete.
 
 Acceptance criteria:
 
@@ -5210,7 +5210,7 @@ Acceptance criteria:
 - [x] Admin top-up retries are idempotent when a caller reuses the same retry identity.
 - [x] Admin top-up rejects unknown target users before mirroring balance state.
 - [x] Add unit/integration coverage for each corrected path.
-- [x] Refresh stale LOC/tree/docs claims for Solution 5 and shared docs.
+- [x] Refresh stale LOC/tree/docs claims for Solution 4 and shared docs.
 
 TDD order:
 
@@ -5220,24 +5220,24 @@ TDD order:
 4. Implement workflow/API/repository fixes.
 5. Refresh docs and run targeted proof commands.
 
-### S5-P1-004-solution5-observability-and-doc-alignment
-- Solution: Sol5
+### S5-P1-004-solution4-observability-and-doc-alignment
+- Solution: Sol4
 
-# P1-004 Solution 5 — Observability and Doc Alignment (DONE)
+# P1-004 Solution 4 — Observability and Doc Alignment (DONE)
 
 Objective:
 
-Make Solution 5's Prometheus + Grafana claim fully real for the shipped external-compute architecture, and align README/RFC/root-matrix wording to the actual system shape.
+Make Solution 4's Prometheus + Grafana claim fully real for the shipped external-compute architecture, and align README/RFC/root-matrix wording to the actual system shape.
 
 Acceptance criteria:
 
 - [x] Compute service exposes a real `/metrics` endpoint with useful counters/histograms.
 - [x] API request latency metrics are actually recorded, not just defined.
 - [x] Prometheus scrapes both `api` and `compute`.
-- [x] Grafana provisioning and a real Solution 5 dashboard are checked in.
-- [x] Solution 5 README reflects external compute, 13 scenarios, and honest container counts.
+- [x] Grafana provisioning and a real Solution 4 dashboard are checked in.
+- [x] Solution 4 README reflects external compute, 13 scenarios, and honest container counts.
 - [x] RFC-0005 reflects external compute instead of inline compute for the shipped implementation.
-- [x] Root `solutions/README.md` entries for Solution 5 match the shipped surface.
+- [x] Root `solutions/README.md` entries for Solution 4 match the shipped surface.
 - [x] `make prove` passes from a clean state after the alignment slice.
 
 Checklist:
@@ -5250,27 +5250,27 @@ Checklist:
 - [x] Reconcile README/RFC/root-matrix language with external compute and current counts.
 - [x] Run targeted tests, quality gate, and full proof.
 
-### S5-P1-005-solution5-failure-release-proof
-- Solution: Sol5
+### S5-P1-005-solution4-failure-release-proof
+- Solution: Sol4
 
-# P1-005 Solution 5 — Immediate Failure Release and Fault Proof (DONE)
+# P1-005 Solution 4 — Immediate Failure Release and Fault Proof (DONE)
 
 Objective:
 
-When external compute fails or times out, Solution 5 should void the pending TigerBeetle hold immediately instead of relying on the 300-second auto-timeout window. Prove that behavior with unit and live fault tests.
+When external compute fails or times out, Solution 4 should void the pending TigerBeetle hold immediately instead of relying on the 300-second auto-timeout window. Prove that behavior with unit and live fault tests.
 
 Acceptance criteria:
 
 - [x] Compute failure and compute timeout paths both attempt immediate `VOID_PENDING_TRANSFER`.
 - [x] Workflow still records deterministic terminal task status (`FAILED`) on those paths.
 - [x] Live fault test proves user balance returns immediately after compute-plane failure.
-- [x] Solution 5 proof posture includes the new fault coverage and still passes cleanly.
+- [x] Solution 4 proof posture includes the new fault coverage and still passes cleanly.
 
 Checklist:
 
 - [x] Add red unit tests for `billing.release_credits(...)` on compute failure and timeout.
 - [x] Add red live fault test that stops compute and verifies immediate balance release.
-- [x] Implement release-on-failure in `src/solution5/workflows.py` with replay-safe semantics.
+- [x] Implement release-on-failure in `src/solution4/workflows.py` with replay-safe semantics.
 - [x] Update proof harness and docs if fault phase or counts change.
 - [x] Run targeted tests, `make quality`, and `make prove`.
 

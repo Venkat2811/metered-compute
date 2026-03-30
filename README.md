@@ -12,7 +12,7 @@ Five progressive implementations from Celery baseline to TigerBeetle + Restate.
 | [Sol 1](solutions/1_solution/) | Redis-native engine | JWT + Redis Streams + Lua | Low-latency, stream-native billing |
 | [Sol 2](solutions/2_solution/) | Service-grade platform | CQRS + RabbitMQ + reservations | Enterprise messaging, audit trail |
 | [Sol 3](solutions/3_solution/) | Financial core | TigerBeetle + Redpanda + CQRS | Jepsen-verified billing, event sourcing |
-| [Sol 5](solutions/5_solution/) | TB + Restate showcase | TigerBeetle + Restate | Minimal code, durable execution |
+| [Sol 4](solutions/4_solution/) | TB + Restate showcase | TigerBeetle + Restate | Minimal code, durable execution |
 
 ## Quick Start
 
@@ -39,7 +39,7 @@ metered-compute/
 |   |-- 1_solution/                      # Redis Streams native
 |   |-- 2_solution/                      # CQRS + RabbitMQ
 |   |-- 3_solution/                      # TigerBeetle + Redpanda
-|   `-- 5_solution/                      # TigerBeetle + Restate
+|   `-- 4_solution/                      # TigerBeetle + Restate
 `-- LICENSE
 ```
 

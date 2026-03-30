@@ -1,0 +1,107 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "id": 1,
+      "targets": [
+        {
+          "expr": "sum(rate(http_request_duration_seconds_count[1m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "HTTP Request Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "id": 2,
+      "targets": [
+        {
+          "expr": "sum(rate(compute_requests_total[1m])) by (job, result)",
+          "refId": "A"
+        }
+      ],
+      "title": "Compute Request Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "id": 3,
+      "targets": [
+        {
+          "expr": "sum(rate(task_completed_total[1m]))",
+          "legendFormat": "completed",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(task_cancelled_total[1m]))",
+          "legendFormat": "cancelled",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(task_failed_total[1m]))",
+          "legendFormat": "failed",
+          "refId": "C"
+        }
+      ],
+      "title": "Task Terminal Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "id": 4,
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(compute_request_seconds_bucket[5m])) by (le, job))",
+          "refId": "A"
+        }
+      ],
+      "title": "Compute Latency P95",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "id": 5,
+      "targets": [
+        {
+          "expr": "sum(rate(credit_reserved_total[1m]))",
+          "legendFormat": "reserved",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(credit_captured_total[1m]))",
+          "legendFormat": "captured",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(credit_released_total[1m]))",
+          "legendFormat": "released",
+          "refId": "C"
+        },
+        {
+          "expr": "sum(rate(credit_topup_total[1m]))",
+          "legendFormat": "topup",
+          "refId": "D"
+        }
+      ],
+      "title": "Credit Lifecycle",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["solution4"],
+  "templating": {"list": []},
+  "time": {"from": "now-15m", "to": "now"},
+  "timezone": "browser",
+  "title": "Solution4 Overview",
+  "version": 1
+}

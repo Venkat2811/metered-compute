@@ -15,12 +15,12 @@ Priority order used across all RFCs:
 - `1_solution`: Redis-Native Engine - JWT + Redis Streams + Lua atomic pipeline
 - `2_solution`: Service-Grade Platform - CQRS + RabbitMQ SLA routing + reservation billing
 - `3_solution`: Financial Core - TigerBeetle + Redpanda + RabbitMQ hot/cold dispatch + CQRS projections
-- `5_solution`: TB + Restate Showcase - TigerBeetle double-entry billing + Restate durable execution
+- `4_solution`: TB + Restate Showcase - TigerBeetle double-entry billing + Restate durable execution
 
 Solutions 0-3 are independently excellent architectural approaches with different tradeoff profiles, each implemented with full test suites and demo scripts.
 Solution 4 is the remaining RFC-only design that extends the architectural exploration without implementation.
 Solution 4 is a launch decision: the best of Sol 1 (speed) + Sol 2 (correctness), minimizing infrastructure for a 2-week production ship.
-Solution 5 is a compact showcase proving TigerBeetle + Restate replace thousands of lines of infrastructure code.
+Solution 4 is a compact showcase proving TigerBeetle + Restate replace thousands of lines of infrastructure code.
 
 Solutions 0 and 5 use API key auth. Solutions 1-4 use JWT/OAuth.
 
@@ -80,7 +80,7 @@ Sustained load test: `cd <N>_solution && make loadtest` (solution-specific profi
 Default demo: `0_solution` (spec-faithful, minimal containers)
 Flagship demo: `1_solution` (zero-Postgres hot path, answers "reduce DB calls" directly)
 CQRS demo: `2_solution` (reservation billing, outbox pattern, RabbitMQ SLA routing)
-TB + Restate showcase: `5_solution` (TigerBeetle billing + Restate durable execution, ~1.8k LOC)
+TB + Restate showcase: `4_solution` (TigerBeetle billing + Restate durable execution, ~1.8k LOC)
 
 ## Containers per solution
 
@@ -99,12 +99,12 @@ Notes:
 - Counts are long-lived services only. Startup/auxiliary one-shots are included where present:
   - `hydra-migrate`, `hydra-client-init` in solutions 1, 2, 3
   - `migrate`, `tb-init` in solution 3
-  - `tb-init` in solution 5
+  - `tb-init` in solution 4
 - optional tracing profiles in solutions 1 and 2 include `tempo` + `otel-collector`; solution 3 includes `tempo` only
 
 Solution 3 is implemented without the optional analytics profile. With ClickHouse enabled later, Sol 3 would be ~17 containers.
 Solution 4 is the remaining RFC-only launch blueprint that picks Sol 1 hot path + Sol 2 outbox.
-Solution 5 has 8 long-lived containers plus the one-shot `tb-init` formatter — still close to Sol 0 in operational footprint, but with TigerBeetle for billing and Restate for durable execution.
+Solution 4 has 8 long-lived containers plus the one-shot `tb-init` formatter — still close to Sol 0 in operational footprint, but with TigerBeetle for billing and Restate for durable execution.
 
 ## Full comparison
 
