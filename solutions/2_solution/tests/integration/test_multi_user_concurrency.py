@@ -117,7 +117,7 @@ def api_client() -> Generator[httpx.Client, None, None]:
 
 
 @pytest.mark.integration
-def test_assignment_compat_endpoints_submit_and_poll(api_client: httpx.Client) -> None:
+def test_spec_compat_endpoints_submit_and_poll(api_client: httpx.Client) -> None:
     admin_token = _oauth_token(
         client=api_client,
         api_key=ADMIN_KEY,

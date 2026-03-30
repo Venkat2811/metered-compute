@@ -25,6 +25,6 @@
 
 ## Why this is acceptable for Solution 0
 
-- Assignment scope is fully satisfied
+- Spec scope is fully satisfied
 - Reliability semantics are explicit and test-covered
 - Complexity is bounded by gate with documented overrides instead of hidden drift

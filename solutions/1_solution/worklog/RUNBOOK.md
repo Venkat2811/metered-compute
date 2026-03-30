@@ -13,7 +13,6 @@ References:
 - `../../0_0_problem_statement_and_assumptions/README.md` (Sections A + B)
 - `../../../.0_agentic_engineering/0_rfcs/RFC-0001-1-solution-redis-native-engine/README.md`
 - `../../README.md` (matrix + code/RFC boundary)
-- `../../../../original-task/api_playground-master/README.md`
 
 ## 1. Local Environment
 

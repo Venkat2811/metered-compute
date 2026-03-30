@@ -1,4 +1,4 @@
-"""System endpoints for health/readiness/metrics and assignment hit counter."""
+"""System endpoints for health/readiness/metrics and hit counter."""
 
 from __future__ import annotations
 

@@ -1,6 +1,6 @@
 # 1_solution: Redis-Native Engine
 
-Production implementation for the metered-compute API assignment using `JWT + Redis Streams + Lua atomic admission`.
+Production implementation for the Pragmatic production baseline for metered async compute APIs using `JWT + Redis Streams + Lua atomic admission`.
 
 Compose project name: `mc-solution1` (set in `compose.yaml`).
 
@@ -8,11 +8,10 @@ Primary references:
 
 - `../../.0_agentic_engineering/0_rfcs/RFC-0001-1-solution-redis-native-engine/README.md`
 - `../README.md`
-- `../../../original-task/api_playground-master/README.md`
 
-Compatibility endpoints from the original assignment are still wired (`/task`, `/poll`, `/admin/credits`, `/hit`).
+Compatibility aliases for the baseline API surface are still wired (`/task`, `/poll`, `/admin/credits`, `/hit`).
 
-## Setup, Run, Demo (Reviewer First)
+## Quick Start
 
 1. Setup
 

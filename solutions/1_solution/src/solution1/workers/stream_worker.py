@@ -83,7 +83,7 @@ async def _acquire_db_connection(
 
 
 class WorkerModel:
-    """Simulated model from assignment baseline."""
+    """Simulated inference model."""
 
     def __init__(self) -> None:
         self._warmed = False

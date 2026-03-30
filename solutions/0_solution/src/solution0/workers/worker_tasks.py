@@ -65,7 +65,7 @@ async def _acquire_db_connection(
 
 
 class WorkerModel:
-    """Simulated model worker from assignment baseline."""
+    """Simulated inference worker."""
 
     def __init__(self) -> None:
         logger.info("worker_initializing")

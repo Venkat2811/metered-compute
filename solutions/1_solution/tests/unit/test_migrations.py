@@ -46,7 +46,7 @@ def test_migration_files_are_ordered_and_stable() -> None:
     ]
 
 
-def test_seed_template_renders_assignment_api_keys() -> None:
+def test_seed_template_renders_api_keys() -> None:
     seed_file = migration_directory() / "0004_seed_users.sql"
     sql = seed_file.read_text(encoding="utf-8")
     assert "{{ADMIN_API_KEY}}" in sql

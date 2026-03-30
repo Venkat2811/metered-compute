@@ -2,7 +2,7 @@
 
 Parent: [RFC-0005 README](./README.md)
 
-Every diagram below shows the exact sequence of store calls for one API request. The "DB calls on happy path" count directly answers the assignment question: _"how can we reduce the number of calls?"_
+Every diagram below shows the exact sequence of store calls for one API request. The "DB calls on happy path" count directly answers the core design question: _"how can we reduce the number of calls?"_
 
 Column convention: Client, API, TigerBeetle (TB), Postgres (PG), Redis, Restate, Compute. Arrows terminate at the system that owns the operation.
 

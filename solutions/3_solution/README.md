@@ -8,7 +8,7 @@ Primary RFC:
 
 - `../../.0_agentic_engineering/0_rfcs/RFC-0003-3-solution-financial-core/README.md`
 
-## Setup, Run, Demo (Reviewer First)
+## Quick Start
 
 1. Setup
 
@@ -64,7 +64,7 @@ This directory has completed `P0-006`. The projector, rebuild tooling, TigerBeet
 What is already real:
 
 - standalone `solution3` Python package under `src/solution3`
-- reviewer-first Docker Compose stack with Postgres, Redis, RabbitMQ, Hydra, Redpanda, TigerBeetle, a one-shot schema migrator, API, and worker-shaped processes
+- Docker Compose stack with Postgres, Redis, RabbitMQ, Hydra, Redpanda, TigerBeetle, a one-shot schema migrator, API, and worker-shaped processes
 - FastAPI app with `/health`, `/ready`, `/v1/oauth/token`, `/v1/task`, `/v1/poll`, `/v1/task/{id}/cancel`, and `/v1/admin/credits`
 - enum-driven SQL migrations plus a host-side `make migrate` / `scripts/migrate.sh` path
 - command-store repository helpers for `task_commands`, `outbox_events`, and guarded cancel updates

@@ -5,7 +5,7 @@ Scope: `0_solution` RFC baseline
 
 ## Executive Summary
 
-Solution 0 is assignment-complete and production-oriented for its scope. Core strengths are strong admission control, explicit compensation paths, deterministic health/readiness contracts, and high test coverage on reliability-critical modules.
+Solution 0 is spec-complete and production-oriented for its scope. Core strengths are strong admission control, explicit compensation paths, deterministic health/readiness contracts, and high test coverage on reliability-critical modules.
 
 Priority order validation:
 

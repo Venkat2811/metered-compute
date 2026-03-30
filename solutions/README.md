@@ -11,11 +11,10 @@ Priority order used across all RFCs:
 
 ## Tracks
 
-- `0_solution`: Pragmatic Baseline - Celery + Redis + Postgres (assignment stack, done right)
+- `0_solution`: Pragmatic Baseline - Celery + Redis + Postgres (baseline spec, done right)
 - `1_solution`: Redis-Native Engine - JWT + Redis Streams + Lua atomic pipeline
 - `2_solution`: Service-Grade Platform - CQRS + RabbitMQ SLA routing + reservation billing
 - `3_solution`: Financial Core - TigerBeetle + Redpanda + RabbitMQ hot/cold dispatch + CQRS projections
-- `4_solution`: Production Launch - Sol 1 hot path + Sol 2 outbox (RFC only)
 - `5_solution`: TB + Restate Showcase - TigerBeetle double-entry billing + Restate durable execution
 
 Solutions 0-3 are independently excellent architectural approaches with different tradeoff profiles, each implemented with full test suites and demo scripts.
@@ -27,7 +26,6 @@ Solutions 0 and 5 use API key auth. Solutions 1-4 use JWT/OAuth.
 
 ## Shared documents
 
-- `0_0_problem_statement_and_assumptions/README.md` - requirements and baseline
 - `../.0_agentic_engineering/0_rfcs/` - one RFC per solution
 
 ## Observability by solution
@@ -79,10 +77,9 @@ Full verification: `cd <N>_solution && make prove`
 
 Sustained load test: `cd <N>_solution && make loadtest` (solution-specific profiles: 0/1 and 5 default to 100 RPS × 30 s, solutions 2 and 3 use deterministic `load_harness.py`-style traffic profiles, then validate acceptance and latency)
 
-Default demo: `0_solution` (assignment-faithful, minimal containers)
+Default demo: `0_solution` (spec-faithful, minimal containers)
 Flagship demo: `1_solution` (zero-Postgres hot path, answers "reduce DB calls" directly)
 CQRS demo: `2_solution` (reservation billing, outbox pattern, RabbitMQ SLA routing)
-Launch blueprint: `4_solution` (RFC only — Sol 1 speed + Sol 2 correctness)
 TB + Restate showcase: `5_solution` (TigerBeetle billing + Restate durable execution, ~1.8k LOC)
 
 ## Containers per solution
@@ -139,7 +136,7 @@ Solution 5 has 8 long-lived containers plus the one-shot `tb-init` formatter —
 | **Dashboards**        | Grafana                               | Grafana                                                                          | Grafana                        | Grafana                                       | Grafana (from Sol 1)                            | Grafana                                        |
 | **Containers**        | ~7                                    | ~9                                                                               | ~12                            | ~15                                           | ~10 (Sol 1 base + outbox-relay from Sol 2)      | ~8                                             |
 | **PG on hot path**    | Auth miss only                        | Submit + worker writes (poll/auth zero-PG; revocation PG fallback if Redis down) | Command writes (txn)           | Command metadata only                         | Admission zero-PG (Sol 1); post-admission PG+outbox | Metadata only (billing in TB)                  |
-| **Key strength**      | Simple, complete, assignment-faithful | Zero-PG hot path                                                                 | Correct under all failures     | Financial-grade + replayable + model-affinity | Sol 1 speed + Sol 2 correctness, minimal infra  | ~1.8k LOC, Jepsen-verified billing, auto-replay |
+| **Key strength**      | Simple, complete, spec-faithful | Zero-PG hot path                                                                 | Correct under all failures     | Financial-grade + replayable + model-affinity | Sol 1 speed + Sol 2 correctness, minimal infra  | ~1.8k LOC, Jepsen-verified billing, auto-replay |
 
 ## Cross-cutting decisions
 

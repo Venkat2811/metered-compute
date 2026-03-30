@@ -4,7 +4,7 @@ Parent: [RFC-0002 README](./README.md)
 
 Target: **50,000 customers, 30M task submissions/day**
 
-> **Compute model note:** This model assumes each task is CPU-bound, occupying 1 compute unit for the full task runtime. The assignment code simulates inference with `time.sleep()`, but the capacity model uses the production-realistic assumption: **1 task = 1 compute unit**. This maps directly to GPU-bound inference — replace "CPU core" with "GPU" and the numbers hold.
+> **Compute model note:** This model assumes each task is CPU-bound, occupying 1 compute unit for the full task runtime. This reference implementation simulates inference with `time.sleep()`, but the capacity model uses the production-realistic assumption: **1 task = 1 compute unit**. This maps directly to GPU-bound inference — replace "CPU core" with "GPU" and the numbers hold.
 
 > **Key difference vs solutions 0/1:** RabbitMQ replaces Celery/Redis Streams as the task queue. Redis is a query cache only (much smaller footprint). Postgres carries more tables (task_commands, credit_reservations, outbox_events, inbox_events, task_query_view) and is on the command path for transactional writes. Queue memory lives in RabbitMQ, not Redis. `T_avg` uses 2.5s (small model default, same as Sol 0) because the compose-scale analytical model assumes the small model class for baseline sizing.
 
@@ -292,7 +292,7 @@ All internal Docker network traffic. No egress costs in Compose. Daily transfer 
 
 Each task occupies **1 compute unit** (CPU core) for the full task runtime. No oversubscription.
 
-- **Assignment simulation:** `time.sleep(2.5s)` -- the core is idle but reserved
+- **Reference simulation:** `time.sleep(2.5s)` -- the core is idle but reserved
 - **Production inference:** 1 GPU per task -- the GPU is fully utilized
 - The numbers below apply to both. Replace "core" with "GPU" for production.
 

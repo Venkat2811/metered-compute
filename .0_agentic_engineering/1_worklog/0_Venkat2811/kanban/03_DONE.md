@@ -333,7 +333,7 @@ Prove behavior under high concurrency and near-saturation load within Solution 0
 
 - [x] High-concurrency behavior is measured and documented, not assumed
 - [x] Rate-limit/concurrency controls are verified under stress
-- [x] RFC scope limits and saturation thresholds are explicit for reviewers
+- [x] RFC scope limits and saturation thresholds are explicit for contributors
 
 ## Evidence
 
@@ -808,7 +808,7 @@ Status: done
 
 ## Scope
 
-Execute accepted hardening items for `0_solution` from consolidated reviewer assessments.
+Execute accepted hardening items for `0_solution` from consolidated contributor assessments.
 
 ## Accepted Checklist
 
@@ -2212,7 +2212,7 @@ Status: done
 
 ## Scope
 
-Execute accepted hardening items for `1_solution` from consolidated reviewer assessments.
+Execute accepted hardening items for `1_solution` from consolidated contributor assessments.
 
 ## Accepted Checklist
 
@@ -2794,11 +2794,11 @@ Depends on: P0-008, P0-009
 
 ## Objective
 
-Finalize Solution 1 delivery with reproducible startup, demo scenarios, and reviewer-ready evidence.
+Finalize Solution 1 delivery with reproducible startup, demo scenarios, and contributor-ready evidence.
 
 ## Checklist
 
-- [x] Add reviewer-first `README.md`: setup, run, demo first; architecture after
+- [x] Add contributor-first `README.md`: setup, run, demo first; architecture after
 - [x] Ensure one-command verification (`make full-check`) performs clean, build, all checks, scenarios
 - [x] Add scripted scenario runner for 5-20 realistic flows, including concurrency cases
 - [x] Capture evidence artifacts (logs, summaries, metrics snapshots)
@@ -3195,7 +3195,7 @@ Restructure RFC-0001 into folder format (same treatment as RFC-0000) and reconci
 
 ## Acceptance Criteria
 
-- [x] Reviewer can navigate RFC-0001 in folder format with clear separation of concerns
+- [x] Contributor can navigate RFC-0001 in folder format with clear separation of concerns
 - [x] Code-vs-doc mismatches for solution 1 are resolved in a single reconciliation pass
 
 ## Notes
@@ -4519,7 +4519,7 @@ Apply only the valid parts of the latest Sol 2 review by reconciling docs/runboo
 
 Objective:
 
-Bring the root/shared documentation back in sync with the currently shipped solutions, starting with the repo-level surfaces that affect Solutions 0-2 reviewers first.
+Bring the root/shared documentation back in sync with the currently shipped solutions, starting with the repo-level surfaces that affect Solutions 0-2 contributors first.
 
 Acceptance criteria:
 
@@ -4550,7 +4550,7 @@ Create a runnable `3_solution` scaffold from `2_solution` conventions, then enfo
 Acceptance criteria:
 
 - [x] Working `make help`, `make venv`, and `make sync` entrypoints.
-- [x] Reviewer-first README with setup/demo/proof sections.
+- [x] Contributor-first README with setup/demo/proof sections.
 - [x] `docker compose up --build -d` starts all required services with health checks.
 - [x] Base package/import structure exists under `src/solution3/`.
 - [x] Local developer safety defaults in `.env.dev.defaults`.
@@ -4861,7 +4861,7 @@ TDD order:
 
 1. Add tests for metrics registration and route-level counters/histograms.
 2. Add scenario tests first for coverage of critical paths in script form.
-3. Add load/capacity tooling for reviewer validation and wire commands into the proof workflow.
+3. Add load/capacity tooling for validation and wire commands into the proof workflow.
 4. Wire commands and validate proof commands are runnable and bounded.
 
 Checklist:

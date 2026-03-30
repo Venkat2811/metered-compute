@@ -96,7 +96,7 @@ def api_client() -> Generator[httpx.Client, None, None]:
 
 
 @pytest.mark.integration
-def test_assignment_compat_endpoints_submit_and_poll(api_client: httpx.Client) -> None:
+def test_spec_compat_endpoints_submit_and_poll(api_client: httpx.Client) -> None:
     _set_balance(api_client, api_key=USER1_KEY, target=120, reason="compat_endpoints")
 
     task_id = ""

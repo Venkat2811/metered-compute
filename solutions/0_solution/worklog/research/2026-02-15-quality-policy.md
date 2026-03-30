@@ -48,7 +48,7 @@ Coverage policy:
 - Suppressions are allowed only when justified in writing inside the relevant script/config.
 - Current approved suppressions:
   - `bandit` rule `B104` in container context (`0.0.0.0` bind is intentional for compose networking).
-  - `hadolint` rule `DL3008` for assignment-level Dockerfiles (unpinned apt package versions).
+  - `hadolint` rule `DL3008` for baseline-level Dockerfiles (unpinned apt package versions).
 - Any new suppression must include:
   1. Reason
   2. Risk impact

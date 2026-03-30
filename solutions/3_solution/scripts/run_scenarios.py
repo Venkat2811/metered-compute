@@ -252,7 +252,7 @@ def build_report(results: list[ScenarioResult], *, base_url: str) -> dict[str, A
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run deterministic Solution 3 reviewer scenarios.")
+    parser = argparse.ArgumentParser(description="Run deterministic Solution 3 scenarios.")
     parser.add_argument("--base-url", default=DEFAULT_BASE_URL)
     parser.add_argument(
         "--output",

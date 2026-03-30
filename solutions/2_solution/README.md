@@ -9,7 +9,7 @@ Primary references:
 - `../../.0_agentic_engineering/0_rfcs/RFC-0002-2-solution-service-grade-platform/`
 - `worklog/kanban/BOARD.md`
 
-## Setup, Run, Demo (Reviewer First)
+## Quick Start
 
 1. Setup
 

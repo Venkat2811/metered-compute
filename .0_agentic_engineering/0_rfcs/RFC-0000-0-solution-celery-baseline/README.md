@@ -74,7 +74,7 @@ Client
 
 ## Reducing database calls
 
-The assignment asks: _"Assuming the database calls are too expensive, how can we reduce the number of calls?"_
+The core question: _"Assuming the database calls are too expensive, how can we reduce the number of calls?"_
 
 | Request    | Naive (PG only)      | This solution     | How                                                       |
 | ---------- | -------------------- | ----------------- | --------------------------------------------------------- |
@@ -105,7 +105,7 @@ Post-admission flows write PG first, then Redis. If Redis write fails after PG c
 
 ## Degree of constraint
 
-- Optimized for: assignment completeness with no artificial limitations
+- Optimized for: baseline completeness with no artificial limitations
 - Tradeoff: Redis/PG cross-store durability is eventual, not transactional
 - Safety invariant: billing favors under-charge over over-charge on faults
 - Migration triggers: auth DB load too high -> solution 1 (JWT), need reliable publish -> solution 2 (outbox)

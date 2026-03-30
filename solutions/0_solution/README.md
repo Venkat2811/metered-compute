@@ -1,6 +1,6 @@
 # 0_solution: Celery Baseline
 
-Pragmatic production baseline for the metered-compute API assignment.
+Pragmatic production baseline for the Pragmatic production baseline for metered async compute APIs.
 
 Compose project name: `mc-solution0` (set in `compose.yaml`).
 
@@ -8,7 +8,7 @@ Primary RFC:
 
 - `../../.0_agentic_engineering/0_rfcs/RFC-0000-0-solution-celery-baseline/README.md`
 
-## Setup, Run, Demo (Reviewer First)
+## Quick Start
 
 1. Setup
 

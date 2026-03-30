@@ -4,7 +4,7 @@ Parent: [RFC-0001 README](./README.md)
 
 Target: **50,000 customers, 30M task submissions/day**
 
-> **Compute model note:** This model assumes each task is CPU-bound, occupying 1 compute unit for the full task runtime. The assignment code simulates inference with `time.sleep()`, but the capacity model uses the production-realistic assumption: **1 task = 1 compute unit**. This maps directly to GPU-bound inference — replace "CPU core" with "GPU" and the numbers hold.
+> **Compute model note:** This model assumes each task is CPU-bound, occupying 1 compute unit for the full task runtime. This reference implementation simulates inference with `time.sleep()`, but the capacity model uses the production-realistic assumption: **1 task = 1 compute unit**. This maps directly to GPU-bound inference — replace "CPU core" with "GPU" and the numbers hold.
 
 > **Key difference vs solution 0:** `T_avg` rises from 2.5s to 3.1s because this solution introduces model classes (small/medium/large) with a realistic mix. Workers process one message at a time via `XREADGROUP count=1` (C=1). Each compute unit is occupied longer, so peak compute demand is higher (2,582 vs 2,083 units).
 
@@ -213,7 +213,7 @@ All internal Docker network traffic. No egress costs in Compose. Worker-to-store
 
 Each task occupies **1 compute unit** (CPU core) for the full task runtime. No oversubscription.
 
-- **Assignment simulation:** `time.sleep(T)` — the core is idle but reserved
+- **Reference simulation:** `time.sleep(T)` — the core is idle but reserved
 - **Production inference:** 1 GPU per task — the GPU is fully utilized
 - The numbers below apply to both. Replace "core" with "GPU" for production.
 

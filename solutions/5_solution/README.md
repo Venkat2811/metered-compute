@@ -10,7 +10,7 @@ Primary RFC:
 
 - `../../.0_agentic_engineering/0_rfcs/RFC-0005-5-solution-tb-restate-showcase/README.md`
 
-## Setup, Run, Demo (Reviewer First)
+## Quick Start
 
 1. Setup
 

@@ -1,7 +1,7 @@
 # 2026-02-15 Production HA Packaging Plan (Postgres + Redis)
 
 Scope:
-Post-assignment production packaging for Solution 0 architecture, preserving behavior while improving failure tolerance.
+Post-release production packaging for Solution 0 architecture, preserving behavior while improving failure tolerance.
 
 ## Postgres topology
 

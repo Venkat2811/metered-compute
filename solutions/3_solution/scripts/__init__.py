@@ -1,1 +1,1 @@
-"""Reviewer tooling scripts for Solution 3."""
+"""Tooling scripts for Solution 3."""

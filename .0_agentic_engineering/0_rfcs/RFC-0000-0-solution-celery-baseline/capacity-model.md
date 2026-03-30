@@ -4,7 +4,7 @@ Parent: [RFC-0000 README](./README.md)
 
 Target: **50,000 customers, 30M task submissions/day**
 
-> **Compute model note:** This model assumes each task is CPU-bound, occupying 1 core for the full task runtime. The assignment code simulates inference with `time.sleep()`, but the capacity model uses the production-realistic assumption: **1 task = 1 compute unit**. This maps directly to GPU-bound inference — replace "CPU core" with "GPU" and the numbers hold.
+> **Compute model note:** This model assumes each task is CPU-bound, occupying 1 core for the full task runtime. This reference implementation simulates inference with `time.sleep()`, but the capacity model uses the production-realistic assumption: **1 task = 1 compute unit**. This maps directly to GPU-bound inference — replace "CPU core" with "GPU" and the numbers hold.
 
 ---
 
@@ -191,7 +191,7 @@ All internal Docker network traffic. No egress costs in Compose.
 
 Each task occupies **1 compute unit** (CPU core) for the full task runtime. No oversubscription.
 
-- **Assignment simulation:** `time.sleep(2.5s)` — the core is idle but reserved
+- **Reference simulation:** `time.sleep(2.5s)` — the core is idle but reserved
 - **Production inference:** 1 GPU per task — the GPU is fully utilized
 - The numbers below apply to both. Replace "core" with "GPU" for production.
 

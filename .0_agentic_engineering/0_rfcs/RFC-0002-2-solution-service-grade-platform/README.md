@@ -546,7 +546,7 @@ All values configurable via `.env.dev.defaults`.
 
 ## Reducing database calls
 
-The assignment asks: _"Assuming the database calls are too expensive, how can we reduce the number of calls?"_
+The core question: _"Assuming the database calls are too expensive, how can we reduce the number of calls?"_
 
 This table shows DB calls per request type, comparing a naive PG-only approach vs solutions 0, 1, and this solution:
 
