@@ -39,7 +39,7 @@ help:
 	@echo "  capture-logs      Capture compose + metrics logs to LOG_DIR"
 	@echo "  demo              Run shell demo smoke"
 	@echo "  demo-python       Run Python demo smoke"
-	@echo "  scenarios         Run deterministic reviewer scenarios"
+	@echo "  scenarios         Run deterministic scenarios"
 	@echo "  loadtest          Run the Solution 3 load harness"
 	@echo "  capacity-model    Generate capacity projections from the latest load report"
 	@echo "  prove             Bootstrap full verification"

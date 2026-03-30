@@ -12,7 +12,6 @@ Solution 1 is fast but has two structural risks: Redis is a single point for bot
 
 Common requirements source:
 
-- `../../0_0_problem_statement_and_assumptions/README.md` (Sections A + B)
 - `../../README.md` (solution matrix)
 
 What changed vs solution 1:
@@ -693,4 +692,3 @@ For the full hourly traffic model, worker/API/queue scaling curves, storage math
 - [Data Ownership and Consistency](./data-ownership.md)
 - [Capacity and Cost Model](./capacity-model.md)
 - `../../README.md`
-- `../../0_0_problem_statement_and_assumptions/README.md`

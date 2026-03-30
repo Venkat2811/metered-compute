@@ -4,7 +4,7 @@ Date: 2026-02-15
 
 ## Goal
 
-Deliver the assignment-faithful baseline with production-grade engineering practices:
+Deliver the spec-faithful baseline with production-grade engineering practices:
 correctness first, strict typing, deterministic tests, and operability.
 
 ## Architecture Guardrails

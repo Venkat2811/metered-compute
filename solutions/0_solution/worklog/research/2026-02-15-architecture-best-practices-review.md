@@ -39,7 +39,7 @@ Priority order validation:
 
 ### Celery
 
-- Queue and worker wiring are correct for assignment baseline.
+- Queue and worker wiring are correct for spec baseline.
 - Retry semantics and terminal refund path are explicit.
 - Cancellation path combines revoke + refund + status update.
 

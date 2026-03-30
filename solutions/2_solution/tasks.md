@@ -234,7 +234,7 @@ Timeout budget chain:
 
 ### 1.4 [I] Seed data migration
 
-- [ ] `0017_seed_users_sol2.sql`: Same seed users as Sol 1 (admin, test_user1, test_user2) with api_keys table entries. ON CONFLICT UPDATE for idempotent re-runs.
+- [ ] `0017_seed_users_sol2.sql`: Same seed users as Sol 1 (admin, alice, bob) with api_keys table entries. ON CONFLICT UPDATE for idempotent re-runs.
 
 ### 1.5 [V] Verify migrations
 

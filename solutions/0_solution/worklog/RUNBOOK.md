@@ -19,7 +19,6 @@ Path normalization (BK-016):
 
 References:
 
-- `../../0_0_problem_statement_and_assumptions/README.md` (Section A)
 - `../../../.0_agentic_engineering/0_rfcs/RFC-0000-0-solution-celery-baseline/README.md`
 
 ## 1. Local Environment

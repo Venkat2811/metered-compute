@@ -12,7 +12,6 @@ Solution 2 solves dual-write and reservation billing, but two structural gaps re
 
 This solution replaces app-coordinated billing with TigerBeetle (Jepsen-verified double-entry accounting) and adds Redpanda (Kafka API compatible, replayable log) as the event backbone. RabbitMQ is retained but with a narrowed role: worker dispatch with hot/cold model-affinity routing. The result: billing invariants are enforced by TigerBeetle's state machine (not application code), every projection is rebuildable by replaying the event log from offset 0, and workers receive tasks routed to warm instances first.
 
-Common requirements: `../0_0_problem_statement_and_assumptions/README.md` Sections A + B.
 
 What changed vs solution 2:
 
@@ -537,5 +536,4 @@ For the full capacity model with storage math, scaling triggers, and cost projec
 - [Capacity and Cost Model](./capacity-model.md) — throughput formula, storage projections, scaling triggers
 - [Sol 1 RFC](../RFC-0001-1-solution-redis-native-engine/README.md)
 - [Sol 2 RFC](../RFC-0002-2-solution-service-grade-platform/README.md)
-- `../../0_0_problem_statement_and_assumptions/README.md`
 - `../../README.md`

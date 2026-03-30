@@ -19,7 +19,7 @@ Should Solution 0 use a library circuit breaker instead of custom code?
 
 3. `aioresilience` (PyPI)
 
-- Newer async resilience toolkit (release observed in 2025), but lower maturity/adoption signal for this assignment baseline.
+- Newer async resilience toolkit (release observed in 2025), but lower maturity/adoption signal for this spec baseline.
 - Source: https://pypi.org/project/aioresilience/
 
 ## Decision for Solution 0

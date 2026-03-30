@@ -8,9 +8,8 @@
 
 ## Context and scope
 
-This solution uses exactly the stack provided in the assignment (Celery, Redis, Postgres) and answers every requirement including the "reduce DB calls" question. No artificial limitations: Redis Lua handles atomic credit deduction even in this baseline.
+This solution uses exactly the stack provided in the spec (Celery, Redis, Postgres) and answers every requirement including the "reduce DB calls" question. No artificial limitations: Redis Lua handles atomic credit deduction even in this baseline.
 
-Common requirements: `../../0_0_problem_statement_and_assumptions/README.md` Section A only.
 
 What this solution delivers:
 
@@ -23,7 +22,7 @@ What this solution does NOT include: JWT/OAuth, tiers, model classes, CQRS, outb
 
 ## Goals and non-goals
 
-**Goals:** Solve the assignment completely and correctly. Demonstrate "reduce DB calls" at every level. Clean upgrade path to solutions 1-3.
+**Goals:** Solve the design problem completely and correctly. Demonstrate "reduce DB calls" at every level. Clean upgrade path to solutions 1-3.
 
 **Non-goals:** Tiered SLA routing. Zero dual-write risk (acknowledged, mitigated with reaper). Financial-ledger-grade transfer model.
 

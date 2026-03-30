@@ -100,7 +100,7 @@ set +a
 ./utils/demo.sh
 ```
 
-Python demo script (assignment-faithful `/task` + `/poll` flow):
+Python demo script (spec-faithful `/task` + `/poll` flow):
 
 ```bash
 source .venv/bin/activate

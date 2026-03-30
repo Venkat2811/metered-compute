@@ -10,7 +10,6 @@ with strict typing and test gates.
 
 References:
 
-- `../../0_0_problem_statement_and_assumptions/README.md` (Sections A + B)
 - `../../../.0_agentic_engineering/0_rfcs/RFC-0001-1-solution-redis-native-engine/README.md`
 - `../../README.md` (matrix + code/RFC boundary)
 
@@ -151,7 +150,7 @@ Production policy remains:
 
 ## 11. BK-008 Credit-Refund Durability Register
 
-- Canonical register: `../0_1_rfcs/RFC-0001-1-solution-redis-native-engine/data-ownership.md#credit-refund-durability-risk-register-solution1-scope`.
+- Canonical register: `../../../.0_agentic_engineering/0_rfcs/RFC-0001-1-solution-redis-native-engine/data-ownership.md#credit-refund-durability-risk-register-solution1-scope`.
 - BK-008 is tracked as a runtime risk register and production guardrail baseline.
 - Operational checks:
   - API log scan (5 min window):

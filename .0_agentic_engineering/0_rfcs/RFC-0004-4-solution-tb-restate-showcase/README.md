@@ -12,7 +12,6 @@ Solutions 0-3 are full implementations (800-3000+ LOC of application Python, dep
 
 This is not a production evolution of Solutions 0-2. It is a focused showcase proving that the right infrastructure choices can eliminate entire categories of application-level complexity.
 
-Common requirements source: `../../0_0_problem_statement_and_assumptions/README.md` Section A.
 
 ### What this solution replaces
 
@@ -365,5 +364,4 @@ For full capacity model with per-component breakdown and scaling triggers, see [
 - [Sol 0 RFC](../RFC-0000-0-solution-celery-baseline/README.md)
 - [Sol 2 RFC](../RFC-0002-2-solution-service-grade-platform/README.md)
 - [Sol 3 RFC](../RFC-0003-3-solution-financial-core/README.md)
-- `../../0_0_problem_statement_and_assumptions/README.md`
 - `../../README.md`
