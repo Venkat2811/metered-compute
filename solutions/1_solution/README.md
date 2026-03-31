@@ -6,10 +6,14 @@ Compose project name: `mc-solution1` (set in `compose.yaml`).
 
 Primary references:
 
-- `../../.0_agentic_engineering/0_rfcs/RFC-0001-1-solution-redis-native-engine/README.md`
-- `../README.md`
+- [RFC-0001: Redis-Native Engine](../../.0_agentic_engineering/0_rfcs/RFC-0001-1-solution-redis-native-engine/README.md)
+- [Solutions overview](../README.md)
 
 Compatibility aliases for the baseline API surface are still wired (`/task`, `/poll`, `/admin/credits`, `/hit`).
+
+## TLDR
+
+![Redis-Native Engine — intro](../../assets/sol_1_1_intro.png)
 
 ## Quick Start
 

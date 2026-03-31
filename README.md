@@ -6,6 +6,8 @@ Reference architectures for authenticated, credit-metered async compute.
 
 Every company running LLM inference, image/video/audio generation, sandboxed code execution, or RL training loops faces the same infrastructure challenge: **metering compute that is expensive, spiky, and asynchronous**.
 
+![The Metered Compute Problem](assets/0_the_problem.png)
+
 GPU and CPU time must be gated per-user, billed accurately, and released immediately on failure. A single lost credit deduction or double-charge erodes trust. A stuck task that holds credits forever burns runway. The system must handle:
 
 - **Pre-flight credit checks** — reject work before it starts if the user can't pay

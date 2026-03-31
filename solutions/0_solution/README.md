@@ -6,7 +6,11 @@ Compose project name: `mc-solution0` (set in `compose.yaml`).
 
 Primary RFC:
 
-- `../../.0_agentic_engineering/0_rfcs/RFC-0000-0-solution-celery-baseline/README.md`
+- [RFC-0000: Celery Baseline](../../.0_agentic_engineering/0_rfcs/RFC-0000-0-solution-celery-baseline/README.md)
+
+## TLDR
+
+![Celery Baseline — intro](../../assets/sol_0_1_intro.png)
 
 ## Quick Start
 
