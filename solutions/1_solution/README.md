@@ -15,6 +15,14 @@ Compatibility aliases for the baseline API surface are still wired (`/task`, `/p
 
 ![Redis-Native Engine — intro](../../assets/sol_1_1_intro.png)
 
+![Redis-Native Engine — architecture](../../assets/sol_1_2_archi.png)
+
+![Redis-Native Engine — request lifecycle](../../assets/sol_1_3_lifecycle.png)
+
+![Redis-Native Engine — tradeoffs](../../assets/sol_1_4_tradeoffs.png)
+
+![Redis-Native Engine — open opportunities](../../assets/sol_1_5_open_opportunities.png)
+
 ## Quick Start
 
 1. Setup

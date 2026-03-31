@@ -12,6 +12,14 @@ Primary RFC:
 
 ![Celery Baseline — intro](../../assets/sol_0_1_intro.png)
 
+![Celery Baseline — architecture](../../assets/sol_0_2_archi.png)
+
+![Celery Baseline — request lifecycle](../../assets/sol_0_3_lifecycle.png)
+
+![Celery Baseline — tradeoffs](../../assets/sol_0_4_tradeoffs.png)
+
+![Celery Baseline — open opportunities](../../assets/sol_0_5_open_opportunities.png)
+
 ## Quick Start
 
 1. Setup
