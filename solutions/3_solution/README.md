@@ -8,6 +8,18 @@ Primary RFC:
 
 - [RFC-0003: Financial Core](../../.0_agentic_engineering/0_rfcs/RFC-0003-3-solution-financial-core/README.md)
 
+## TLDR
+
+![Financial Core — intro](../../assets/sol_3_1_intro.png)
+
+![Financial Core — architecture](../../assets/sol_3_2_archi.png)
+
+![Financial Core — request lifecycle](../../assets/sol_3_3_lifecycle.png)
+
+![Financial Core — tradeoffs](../../assets/sol_3_4_tradeoffs.png)
+
+![Financial Core — open opportunities](../../assets/sol_3_5_open_opportunities.png)
+
 ## Quick Start
 
 1. Setup

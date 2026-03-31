@@ -10,6 +10,18 @@ Primary RFC:
 
 - [RFC-0004: TB + Restate Showcase](../../.0_agentic_engineering/0_rfcs/RFC-0004-4-solution-tb-restate-showcase/README.md)
 
+## TLDR
+
+![TigerBeetle + Restate — intro](../../assets/sol_4_1_intro.png)
+
+![TigerBeetle + Restate — architecture](../../assets/sol_4_2_archi.png)
+
+![TigerBeetle + Restate — request lifecycle](../../assets/sol_4_3_lifecycle.png)
+
+![TigerBeetle + Restate — tradeoffs](../../assets/sol_4_4_tradeoffs.png)
+
+![Five Approaches, One Problem](../../assets/z_pick_your_poison.png)
+
 ## Quick Start
 
 1. Setup

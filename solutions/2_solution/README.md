@@ -9,6 +9,18 @@ Primary references:
 - [RFC-0002: Service-Grade Platform](../../.0_agentic_engineering/0_rfcs/RFC-0002-2-solution-service-grade-platform/)
 - `worklog/kanban/BOARD.md`
 
+## TLDR
+
+![Service-Grade Platform — intro](../../assets/sol_2_1_intro.png)
+
+![Service-Grade Platform — architecture](../../assets/sol_2_2_archi.png)
+
+![Service-Grade Platform — request lifecycle](../../assets/sol_2_3_lifecycle.png)
+
+![Service-Grade Platform — tradeoffs](../../assets/sol_2_4_tradeoffs.png)
+
+![Service-Grade Platform — open opportunities](../../assets/sol_2_5_open_opportunities.png)
+
 ## Quick Start
 
 1. Setup

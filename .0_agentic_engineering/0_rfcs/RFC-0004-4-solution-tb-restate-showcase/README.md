@@ -281,7 +281,7 @@ For detailed per-endpoint sequence diagrams, see [Request Flow Diagrams](./reque
 ### Risks and costs
 
 - **TigerBeetle is a runtime dependency.** It is a Zig-based system that is not yet widely adopted. The team must operate and monitor a new storage engine. However, it is Jepsen-verified and designed for exactly this use case.
-- **Restate is a runtime dependency.** It is a relatively new durable execution framework (Rust-based, single binary). The team must learn its execution model and monitor its journal storage. However, it provides the same guarantees as Temporal with significantly less operational overhead.
+- **Restate is a runtime dependency.** Built by the co-creators of Apache Flink, it is a Rust-based single binary with sub-10ms per-step overhead. The team must learn the journal+replay execution model, which differs from traditional request-response debugging — Restate provides a UI for inspecting invocation state. It delivers the same durable execution guarantees as Temporal with significantly less operational overhead and fits naturally in Docker Compose.
 - **Vendor coupling.** Both TB and Restate are specific products, not patterns. The outbox pattern in Solution 2 works with any message broker. Restate journals are Restate-specific.
 - **Debugging model differs.** Restate replays are deterministic but the execution model (journal + replay) differs from traditional request-response debugging. Restate provides a dashboard for inspecting invocation state.
 - **Single-node TigerBeetle.** In Docker Compose, TB runs as a single replica. Production deployment requires cluster configuration for durability.

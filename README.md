@@ -6,7 +6,7 @@ Reference architectures for authenticated, credit-metered async compute.
 
 Every company running LLM inference, image/video/audio generation, sandboxed code execution, or RL training loops faces the same infrastructure challenge: **metering compute that is expensive, spiky, and asynchronous**.
 
-![The Metered Compute Problem](assets/0_the_problem.png)
+![The Metered Compute Problem](assets/a_the_problem.png)
 
 GPU and CPU time must be gated per-user, billed accurately, and released immediately on failure. A single lost credit deduction or double-charge erodes trust. A stuck task that holds credits forever burns runway. The system must handle:
 
@@ -25,10 +25,12 @@ This repo implements five progressively sophisticated solutions to this problem,
 | [Sol 0](solutions/0_solution/) | Pragmatic baseline | Celery + Redis + Postgres | Quick prototype, familiar stack |
 | [Sol 1](solutions/1_solution/) | Redis-native engine | JWT + Redis Streams + Lua | Low-latency, zero-PG hot path |
 | [Sol 2](solutions/2_solution/) | Service-grade platform | CQRS + RabbitMQ + reservations | Enterprise messaging, audit trail |
-| [Sol 3](solutions/3_solution/) | Financial core | TigerBeetle + Redpanda + CQRS | Jepsen-verified billing, event sourcing |
+| [Sol 3](solutions/3_solution/) | Financial core | TigerBeetle + Redpanda + CQRS | Jepsen-verified billing, replayable event log |
 | [Sol 4](solutions/4_solution/) | TB + Restate showcase | TigerBeetle + Restate | Minimal code, durable execution |
 
 Each solution is independently runnable with full test suites, scenario harnesses, load tests, fault tests, observability (Prometheus + Grafana), and a demo script.
+
+![Five Approaches, One Problem](assets/z_pick_your_poison.png)
 
 ## Quick Start
 
