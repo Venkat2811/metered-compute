@@ -90,7 +90,9 @@ Report: `worklog/evidence/load/loadtest-latest.json` — includes p50/p95/p99 la
 
 ## By the numbers
 
-| Metric                | Sol 0 | Sol 2  | **Sol 4** |
+Container counts reflect each solution's shipped feature set for this metered compute implementation. Sol 2 ships webhooks, outbox relay, projector, and watchdog; Sol 4 is scoped to the correctness showcase. Adding equivalent features to Sol 4 would increase its count proportionally.
+
+| Metric                | Sol 0 | Sol 2 (incl. webhook+relay) | **Sol 4** (focused scope) |
 |-----------------------|-------|--------|-----------|
 | Python LOC            | ~800  | ~3,000 | **~1,800** |
 | PG tables             | 3     | 8+     | **3**     |

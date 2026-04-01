@@ -257,11 +257,13 @@ For detailed per-endpoint sequence diagrams, see [Request Flow Diagrams](./reque
 
 ## Comparison table
 
+Container counts reflect each solution's shipped feature set for this metered compute implementation. Sol 2 ships webhooks, outbox relay, projector, and watchdog; Sol 4 is scoped to the correctness showcase. Adding the same features to Sol 4 would increase its count proportionally.
+
 | Dimension            | Solution 0 (Celery)        | Solution 2 (CQRS+Outbox)       | Solution 4 (TB+Restate)        |
 | -------------------- | -------------------------- | ------------------------------- | ------------------------------ |
 | Python LOC           | ~800                       | ~3000+                          | ~700-900                       |
 | PG tables            | 4                          | 8                               | 3                              |
-| Compose containers   | ~7                         | ~12                             | 8                              |
+| Compose containers   | ~7 (this impl.)            | ~12 (this impl., incl. webhook) | ~8 (this impl., focused scope) |
 | Outbox/relay         | None (dual-write risk)     | Yes (outbox + relay + inbox)    | None (Restate journal)         |
 | Billing correctness  | App SQL + reaper           | App SQL + reservation FSM       | TB engine-level invariant      |
 | Crash recovery       | Reaper job (delayed)       | Outbox replay + watchdog        | Restate auto-replay (instant)  |

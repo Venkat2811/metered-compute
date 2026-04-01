@@ -82,6 +82,8 @@ TB + Restate showcase: `4_solution` (TigerBeetle billing + Restate durable execu
 
 CQRS separation (solutions 2-3) is in the code (separate routers, separate schemas), not separate containers.
 
+Counts reflect each solution's shipped feature set for this metered compute implementation. Observability (Prometheus + Grafana) is uniform across all solutions. Adding features such as webhooks, analytics, or additional routing tiers increases counts proportionally for any approach.
+
 | Solution | Total | Core services                                                                          | Infrastructure                                   | Observability       |
 | -------- | ----- | -------------------------------------------------------------------------------------- | ------------------------------------------------ | ------------------- |
 | 0        | ~7    | api, worker, reaper                                                                    | redis, postgres                                  | prometheus, grafana |
@@ -97,7 +99,7 @@ Notes:
 - Optional tracing profiles in solutions 1 and 2 include `tempo` + `otel-collector`; solution 3 includes `tempo` only
 
 Solution 3 is implemented without the optional analytics profile. With ClickHouse enabled, Sol 3 would be ~17 containers.
-Solution 4 has 8 long-lived containers plus the one-shot `tb-init` — close to Sol 0 in operational footprint, but with TigerBeetle for billing and Restate for durable execution.
+Solution 4 has 6 core long-lived containers plus the one-shot `tb-init` and 2 observability containers. Its smaller footprint reflects its focused correctness showcase scope — not a ceiling on what the approach can support.
 
 ## Full comparison
 
@@ -127,7 +129,7 @@ Solution 4 has 8 long-lived containers plus the one-shot `tb-init` — close to 
 | **OLAP**              | —                                     | —                                                                                | —                              | RFC: ClickHouse                               | —                                              |
 | **Alerting**          | Prometheus rules                      | Prometheus rules                                                                 | Prometheus rules               | Prometheus rules                              | —                                              |
 | **Dashboards**        | Grafana                               | Grafana                                                                          | Grafana                        | Grafana                                       | Grafana                                        |
-| **Containers**        | ~7                                    | ~9                                                                               | ~12                            | ~15                                           | ~8                                             |
+| **Containers**        | ~7 (for this implementation)          | ~9 (for this implementation)                                                     | ~12 (for this implementation)  | ~15 (for this implementation)                 | ~8 (for this implementation)                   |
 | **PG on hot path**    | Auth miss only                        | Submit + worker writes (poll/auth zero-PG)                                       | Command writes (txn)           | Command metadata only                         | Metadata only (billing in TB)                  |
 | **Key strength**      | Simple, complete, pragmatic           | Zero-PG hot path                                                                 | Correct under all failures     | Financial-grade + replayable + model-affinity | ~1.8k LOC, Jepsen-verified, auto-replay        |
 
